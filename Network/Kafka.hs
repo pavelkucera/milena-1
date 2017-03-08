@@ -179,11 +179,11 @@ makeRequest h reqresp = do
       return (ClientId conid, corid)
 
 -- | Send a metadata request to any broker.
-metadata :: Kafka m => MetadataRequest -> m MetadataResponse
+metadata :: Kafka m => MetadataRequestV0 -> m MetadataResponseV0
 metadata request = withAnyHandle $ flip metadata' request
 
 -- | Send a metadata request.
-metadata' :: Kafka m => Handle -> MetadataRequest -> m MetadataResponse
+metadata' :: Kafka m => Handle -> MetadataRequestV0 -> m MetadataResponseV0
 metadata' h request = makeRequest h $ MetadataRR request
 
 getTopicPartitionLeader :: Kafka m => TopicName -> Partition -> m Broker
@@ -224,7 +224,7 @@ protocolTime (OtherTime o) = o
 
 updateMetadatas :: Kafka m => [TopicName] -> m ()
 updateMetadatas ts = do
-  md <- metadata $ MetadataReq ts
+  md <- metadata $ MetadataReqV0 ts
   let (brokers, tmds) = (md ^.. metadataResponseBrokers . folded, md ^.. topicsMetadata . folded)
       addresses = map broker2address brokers
   stateAddresses %= NE.nub . NE.fromList . (++ addresses) . NE.toList
@@ -325,8 +325,8 @@ getLastOffset' h m p t = do
   maybe (throwError KafkaNoOffset) return maybeResp
 
 -- | Create an offset request.
-offsetRequest :: [(TopicAndPartition, PartitionOffsetRequestInfo)] -> OffsetRequest
+offsetRequest :: [(TopicAndPartition, PartitionOffsetRequestInfo)] -> OffsetRequestV0
 offsetRequest ts =
-    OffsetReq (ReplicaId (-1), M.toList . M.unionsWith (<>) $ fmap f ts)
+    OffsetReqV0 (ReplicaId (-1), M.toList . M.unionsWith (<>) $ fmap f ts)
         where f (TopicAndPartition t p, i) = M.singleton t [g p i]
               g p (PartitionOffsetRequestInfo kt mno) = (p, protocolTime kt, mno)

@@ -28,10 +28,10 @@ import qualified Data.ByteString.Char8 as B
 import qualified Network
 
 data ReqResp a where
-  MetadataRR :: MonadIO m => MetadataRequest -> ReqResp (m MetadataResponse)
-  ProduceRR  :: MonadIO m => ProduceRequest  -> ReqResp (m ProduceResponse)
-  FetchRR    :: MonadIO m => FetchRequest    -> ReqResp (m FetchResponse)
-  OffsetRR   :: MonadIO m => OffsetRequest   -> ReqResp (m OffsetResponse)
+  MetadataRR :: MonadIO m => MetadataRequestV0 -> ReqResp (m MetadataResponseV0)
+  ProduceRR  :: MonadIO m => ProduceRequestV0  -> ReqResp (m ProduceResponseV0)
+  FetchRR    :: MonadIO m => FetchRequestV0    -> ReqResp (m FetchResponseV0)
+  OffsetRR   :: MonadIO m => OffsetRequestV0   -> ReqResp (m OffsetResponseV0)
 
 doRequest' :: (Deserializable a, MonadIO m) => CorrelationId -> Handle -> Request -> m (Either String a)
 doRequest' correlationId h r = do
@@ -60,23 +60,23 @@ class Serializable a where
 class Deserializable a where
   deserialize :: Get a
 
-newtype GroupCoordinatorResponse = GroupCoordinatorResp (KafkaError, Broker) deriving (Show, Eq, Deserializable)
+newtype GroupCoordinatorResponseV0 = GroupCoordinatorRespV0 (KafkaError, Broker) deriving (Show, Eq, Deserializable)
 
 newtype ApiKey = ApiKey Int16 deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum) -- numeric ID for API (i.e. metadata req, produce req, etc.)
 newtype ApiVersion = ApiVersion Int16 deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum)
 newtype CorrelationId = CorrelationId Int32 deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum)
 newtype ClientId = ClientId KafkaString deriving (Show, Eq, Deserializable, Serializable, IsString)
 
-data RequestMessage = MetadataRequest MetadataRequest
-                    | ProduceRequest ProduceRequest
-                    | FetchRequest FetchRequest
-                    | OffsetRequest OffsetRequest
-                    | OffsetCommitRequest OffsetCommitRequest
-                    | OffsetFetchRequest OffsetFetchRequest
-                    | GroupCoordinatorRequest GroupCoordinatorRequest
+data RequestMessage = MetadataRequest MetadataRequestV0
+                    | ProduceRequest ProduceRequestV0
+                    | FetchRequest FetchRequestV0
+                    | OffsetRequest OffsetRequestV0
+                    | OffsetCommitRequest OffsetCommitRequestV0
+                    | OffsetFetchRequest OffsetFetchRequestV0
+                    | GroupCoordinatorRequest GroupCoordinatorRequestV0
                     deriving (Show, Eq)
 
-newtype MetadataRequest = MetadataReq [TopicName] deriving (Show, Eq, Serializable, Deserializable)
+newtype MetadataRequestV0 = MetadataReqV0 [TopicName] deriving (Show, Eq, Serializable, Deserializable)
 newtype TopicName = TName { _tName :: KafkaString } deriving (Eq, Ord, Deserializable, Serializable, IsString)
 
 instance Show TopicName where
@@ -85,23 +85,23 @@ instance Show TopicName where
 newtype KafkaBytes = KBytes { _kafkaByteString :: ByteString } deriving (Show, Eq, IsString)
 newtype KafkaString = KString { _kString :: ByteString } deriving (Show, Eq, Ord, IsString)
 
-newtype ProduceResponse =
-  ProduceResp { _produceResponseFields :: [(TopicName, [(Partition, KafkaError, Offset)])] }
+newtype ProduceResponseV0 =
+  ProduceRespV0 { _produceResponseFieldsV0 :: [(TopicName, [(Partition, KafkaError, Offset)])] }
   deriving (Show, Eq, Deserializable, Serializable)
 
-newtype OffsetResponse =
-  OffsetResp { _offsetResponseFields :: [(TopicName, [PartitionOffsets])] }
+newtype OffsetResponseV0 =
+  OffsetRespV0 { _offsetResponseFieldsV0 :: [(TopicName, [PartitionOffsetsV0])] }
   deriving (Show, Eq, Deserializable)
 
-newtype PartitionOffsets =
-  PartitionOffsets { _partitionOffsetsFields :: (Partition, KafkaError, [Offset]) }
+newtype PartitionOffsetsV0 =
+  PartitionOffsetsV0 { _partitionOffsetsFieldsV0 :: (Partition, KafkaError, [Offset]) }
   deriving (Show, Eq, Deserializable)
 
-newtype FetchResponse =
-  FetchResp { _fetchResponseFields :: [(TopicName, [(Partition, KafkaError, Offset, MessageSet)])] }
+newtype FetchResponseV0 =
+  FetchRespV0 { _fetchResponseFieldsV0 :: [(TopicName, [(Partition, KafkaError, Offset, MessageSet)])] }
   deriving (Show, Eq, Serializable, Deserializable)
 
-newtype MetadataResponse = MetadataResp { _metadataResponseFields :: ([Broker], [TopicMetadata]) } deriving (Show, Eq, Deserializable)
+newtype MetadataResponseV0 = MetadataRespV0 { _metadataResponseFieldsV0 :: ([Broker], [TopicMetadata]) } deriving (Show, Eq, Deserializable)
 newtype Broker = Broker { _brokerFields :: (NodeId, Host, Port) } deriving (Show, Eq, Ord, Deserializable)
 newtype NodeId = NodeId { _nodeId :: Int32 } deriving (Show, Eq, Deserializable, Num, Integral, Ord, Real, Enum)
 newtype Host = Host { _hostKString :: KafkaString } deriving (Show, Eq, Ord, Deserializable, IsString)
@@ -113,15 +113,15 @@ newtype Leader = Leader { _leaderId :: Maybe Int32 } deriving (Show, Eq, Ord)
 newtype Replicas = Replicas [Int32] deriving (Show, Eq, Serializable, Deserializable)
 newtype Isr = Isr [Int32] deriving (Show, Eq, Deserializable)
 
-newtype OffsetCommitResponse = OffsetCommitResp [(TopicName, [(Partition, KafkaError)])] deriving (Show, Eq, Deserializable)
-newtype OffsetFetchResponse = OffsetFetchResp [(TopicName, [(Partition, Offset, Metadata, KafkaError)])] deriving (Show, Eq, Deserializable)
+newtype OffsetCommitResponseV0 = OffsetCommitRespV0 [(TopicName, [(Partition, KafkaError)])] deriving (Show, Eq, Deserializable)
+newtype OffsetFetchResponseV0 = OffsetFetchRespV0 [(TopicName, [(Partition, Offset, Metadata, KafkaError)])] deriving (Show, Eq, Deserializable)
 
-newtype OffsetRequest = OffsetReq (ReplicaId, [(TopicName, [(Partition, Time, MaxNumberOfOffsets)])]) deriving (Show, Eq, Serializable)
+newtype OffsetRequestV0 = OffsetReqV0 (ReplicaId, [(TopicName, [(Partition, Time, MaxNumberOfOffsets)])]) deriving (Show, Eq, Serializable)
 newtype Time = Time { _timeInt :: Int64 } deriving (Show, Eq, Serializable, Num, Integral, Ord, Real, Enum, Bounded)
 newtype MaxNumberOfOffsets = MaxNumberOfOffsets Int32 deriving (Show, Eq, Serializable, Num, Integral, Ord, Real, Enum)
 
-newtype FetchRequest =
-  FetchReq (ReplicaId, MaxWaitTime, MinBytes,
+newtype FetchRequestV0 =
+  FetchReqV0 (ReplicaId, MaxWaitTime, MinBytes,
             [(TopicName, [(Partition, Offset, MaxBytes)])])
   deriving (Show, Eq, Deserializable, Serializable)
 
@@ -130,8 +130,8 @@ newtype MaxWaitTime = MaxWaitTime Int32 deriving (Show, Eq, Num, Integral, Ord, 
 newtype MinBytes = MinBytes Int32 deriving (Show, Eq, Num, Integral, Ord, Real, Enum, Serializable, Deserializable)
 newtype MaxBytes = MaxBytes Int32 deriving (Show, Eq, Num, Integral, Ord, Real, Enum, Serializable, Deserializable)
 
-newtype ProduceRequest =
-  ProduceReq (RequiredAcks, Timeout,
+newtype ProduceRequestV0 =
+  ProduceReqV0 (RequiredAcks, Timeout,
               [(TopicName, [(Partition, MessageSet)])])
   deriving (Show, Eq, Serializable)
 
@@ -160,19 +160,19 @@ newtype Attributes = Attributes Int8 deriving (Show, Eq, Serializable, Deseriali
 newtype Key = Key { _keyBytes :: Maybe KafkaBytes } deriving (Show, Eq)
 newtype Value = Value { _valueBytes :: Maybe KafkaBytes } deriving (Show, Eq)
 
-data ResponseMessage = MetadataResponse MetadataResponse
-                     | ProduceResponse ProduceResponse
-                     | FetchResponse FetchResponse
-                     | OffsetResponse OffsetResponse
-                     | OffsetCommitResponse OffsetCommitResponse
-                     | OffsetFetchResponse OffsetFetchResponse
-                     | GroupCoordinatorResponse GroupCoordinatorResponse
+data ResponseMessage = MetadataResponse MetadataResponseV0
+                     | ProduceResponse ProduceResponseV0
+                     | FetchResponse FetchResponseV0
+                     | OffsetResponse OffsetResponseV0
+                     | OffsetCommitResponse OffsetCommitResponseV0
+                     | OffsetFetchResponse OffsetFetchResponseV0
+                     | GroupCoordinatorResponse GroupCoordinatorResponseV0
                      deriving (Show, Eq)
 
-newtype GroupCoordinatorRequest = GroupCoordinatorReq ConsumerGroup deriving (Show, Eq, Serializable)
+newtype GroupCoordinatorRequestV0 = GroupCoordinatorReqV0 ConsumerGroup deriving (Show, Eq, Serializable)
 
-newtype OffsetCommitRequest = OffsetCommitReq (ConsumerGroup, [(TopicName, [(Partition, Offset, Time, Metadata)])]) deriving (Show, Eq, Serializable)
-newtype OffsetFetchRequest = OffsetFetchReq (ConsumerGroup, [(TopicName, [Partition])]) deriving (Show, Eq, Serializable)
+newtype OffsetCommitRequestV0 = OffsetCommitReqV0 (ConsumerGroup, [(TopicName, [(Partition, Offset, Time, Metadata)])]) deriving (Show, Eq, Serializable)
+newtype OffsetFetchRequestV0 = OffsetFetchReqV0 (ConsumerGroup, [(TopicName, [Partition])]) deriving (Show, Eq, Serializable)
 newtype ConsumerGroup = ConsumerGroup KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
 newtype Metadata = Metadata KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
 
@@ -420,14 +420,14 @@ makeLenses ''TopicName
 makeLenses ''KafkaBytes
 makeLenses ''KafkaString
 
-makeLenses ''ProduceResponse
+makeLenses ''ProduceResponseV0
 
-makeLenses ''OffsetResponse
-makeLenses ''PartitionOffsets
+makeLenses ''OffsetResponseV0
+makeLenses ''PartitionOffsetsV0
 
-makeLenses ''FetchResponse
+makeLenses ''FetchResponseV0
 
-makeLenses ''MetadataResponse
+makeLenses ''MetadataResponseV0
 makeLenses ''Broker
 makeLenses ''NodeId
 makeLenses ''Host
@@ -456,11 +456,11 @@ makePrisms ''ResponseMessage
 keyed :: (Field1 a a b b, Choice p, Applicative f, Eq b) => b -> Optic' p f a a
 keyed k = filtered (view $ _1 . to (== k))
 
-metadataResponseBrokers :: Lens' MetadataResponse [Broker]
-metadataResponseBrokers = metadataResponseFields . _1
+metadataResponseBrokers :: Lens' MetadataResponseV0 [Broker]
+metadataResponseBrokers = metadataResponseFieldsV0 . _1
 
-topicsMetadata :: Lens' MetadataResponse [TopicMetadata]
-topicsMetadata = metadataResponseFields . _2
+topicsMetadata :: Lens' MetadataResponseV0 [TopicMetadata]
+topicsMetadata = metadataResponseFieldsV0 . _2
 
 topicMetadataKafkaError :: Lens' TopicMetadata KafkaError
 topicMetadataKafkaError = topicMetadataFields . _1
@@ -486,16 +486,16 @@ brokerHost = brokerFields . _2
 brokerPort :: Lens' Broker Port
 brokerPort = brokerFields . _3
 
-fetchResponseMessages :: Fold FetchResponse MessageSet
-fetchResponseMessages = fetchResponseFields . folded . _2 . folded . _4
+fetchResponseMessages :: Fold FetchResponseV0 MessageSet
+fetchResponseMessages = fetchResponseFieldsV0 . folded . _2 . folded . _4
 
-fetchResponseByTopic :: TopicName -> Fold FetchResponse (Partition, KafkaError, Offset, MessageSet)
-fetchResponseByTopic t = fetchResponseFields . folded . keyed t . _2 . folded
+fetchResponseByTopic :: TopicName -> Fold FetchResponseV0 (Partition, KafkaError, Offset, MessageSet)
+fetchResponseByTopic t = fetchResponseFieldsV0 . folded . keyed t . _2 . folded
 
 messageSetByPartition :: Partition -> Fold (Partition, KafkaError, Offset, MessageSet) MessageSetMember
 messageSetByPartition p = keyed p . _4 . messageSetMembers . folded
 
-fetchResponseMessageMembers :: Fold FetchResponse MessageSetMember
+fetchResponseMessageMembers :: Fold FetchResponseV0 MessageSetMember
 fetchResponseMessageMembers = fetchResponseMessages . messageSetMembers . folded
 
 messageKey :: Lens' Message Key
@@ -510,10 +510,10 @@ messageValue = messageFields . _5
 payload :: Fold Message ByteString
 payload = messageValue . valueBytes . folded . kafkaByteString
 
-offsetResponseOffset :: Partition -> Fold OffsetResponse Offset
-offsetResponseOffset p = offsetResponseFields . folded . _2 . folded . partitionOffsetsFields . keyed p . _3 . folded
+offsetResponseOffset :: Partition -> Fold OffsetResponseV0 Offset
+offsetResponseOffset p = offsetResponseFieldsV0 . folded . _2 . folded . partitionOffsetsFieldsV0 . keyed p . _3 . folded
 
-messageSet :: Partition -> TopicName -> Fold FetchResponse MessageSetMember
+messageSet :: Partition -> TopicName -> Fold FetchResponseV0 MessageSetMember
 messageSet p t = fetchResponseByTopic t . messageSetByPartition p
 
 nextOffset :: Lens' MessageSetMember Offset
