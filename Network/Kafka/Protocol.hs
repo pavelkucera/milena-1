@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Rank2Types #-}
 
 module Network.Kafka.Protocol
@@ -60,6 +61,10 @@ class Serializable a where
 class Deserializable a where
   deserialize :: Get a
 
+class RequestValue r where
+  type ReqValue r
+  requestValue :: r -> ReqValue r
+
 newtype GroupCoordinatorResponseV0 = GroupCoordinatorRespV0 (KafkaError, Broker) deriving (Show, Eq, Deserializable)
 
 newtype ApiKey = ApiKey Int16 deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum) -- numeric ID for API (i.e. metadata req, produce req, etc.)
@@ -75,6 +80,9 @@ data RequestMessage = MetadataRequest MetadataRequestV0
                     | OffsetFetchRequest OffsetFetchRequestV0
                     | GroupCoordinatorRequest GroupCoordinatorRequestV0
                     deriving (Show, Eq)
+
+data MetadataRequest req resp where
+  MetadataRequestV0 :: MetadataRequestV0 -> MetadataRequest MetadataRequestV0 MetadataResponseV0
 
 newtype MetadataRequestV0 = MetadataReqV0 [TopicName] deriving (Show, Eq, Serializable, Deserializable)
 newtype TopicName = TName { _tName :: KafkaString } deriving (Eq, Ord, Deserializable, Serializable, IsString)
@@ -116,9 +124,15 @@ newtype Isr = Isr [Int32] deriving (Show, Eq, Deserializable)
 newtype OffsetCommitResponseV0 = OffsetCommitRespV0 [(TopicName, [(Partition, KafkaError)])] deriving (Show, Eq, Deserializable)
 newtype OffsetFetchResponseV0 = OffsetFetchRespV0 [(TopicName, [(Partition, Offset, Metadata, KafkaError)])] deriving (Show, Eq, Deserializable)
 
+data OffsetRequest req resp where
+  OffsetRequestV0 :: OffsetRequestV0 -> OffsetRequest OffsetRequestV0 OffsetResponseV0
+
 newtype OffsetRequestV0 = OffsetReqV0 (ReplicaId, [(TopicName, [(Partition, Time, MaxNumberOfOffsets)])]) deriving (Show, Eq, Serializable)
 newtype Time = Time { _timeInt :: Int64 } deriving (Show, Eq, Serializable, Num, Integral, Ord, Real, Enum, Bounded)
 newtype MaxNumberOfOffsets = MaxNumberOfOffsets Int32 deriving (Show, Eq, Serializable, Num, Integral, Ord, Real, Enum)
+
+data FetchRequest req resp where
+  FetchRequestV0 :: FetchRequestV0 -> FetchRequest FetchRequestV0 FetchResponseV0
 
 newtype FetchRequestV0 =
   FetchReqV0 (ReplicaId, MaxWaitTime, MinBytes,
@@ -129,6 +143,9 @@ newtype ReplicaId = ReplicaId Int32 deriving (Show, Eq, Num, Integral, Ord, Real
 newtype MaxWaitTime = MaxWaitTime Int32 deriving (Show, Eq, Num, Integral, Ord, Real, Enum, Serializable, Deserializable)
 newtype MinBytes = MinBytes Int32 deriving (Show, Eq, Num, Integral, Ord, Real, Enum, Serializable, Deserializable)
 newtype MaxBytes = MaxBytes Int32 deriving (Show, Eq, Num, Integral, Ord, Real, Enum, Serializable, Deserializable)
+
+data ProduceRequest req resp where
+  ProduceRequestV0 :: ProduceRequestV0 -> ProduceRequest ProduceRequestV0 ProduceResponseV0
 
 newtype ProduceRequestV0 =
   ProduceReqV0 (RequiredAcks, Timeout,
@@ -169,9 +186,19 @@ data ResponseMessage = MetadataResponse MetadataResponseV0
                      | GroupCoordinatorResponse GroupCoordinatorResponseV0
                      deriving (Show, Eq)
 
+data GroupCoordinatorRequest req resp where
+  GroupCoordinatorRequestV0 :: GroupCoordinatorRequestV0 -> GroupCoordinatorRequest GroupCoordinatorRequestV0 GroupCoordinatorResponseV0
+
 newtype GroupCoordinatorRequestV0 = GroupCoordinatorReqV0 ConsumerGroup deriving (Show, Eq, Serializable)
 
+data OffsetCommitRequest req resp where
+  OffsetCommitRequestV0 :: OffsetCommitRequestV0 -> OffsetCommitRequest OffsetCommitRequestV0 OffsetCommitResponseV0
+
 newtype OffsetCommitRequestV0 = OffsetCommitReqV0 (ConsumerGroup, [(TopicName, [(Partition, Offset, Time, Metadata)])]) deriving (Show, Eq, Serializable)
+
+data OffsetFetchRequest req resp where
+  OffsetFetchRequestV0 :: OffsetFetchRequestV0 -> OffsetFetchRequest OffsetFetchRequestV0 OffsetFetchResponseV0
+
 newtype OffsetFetchRequestV0 = OffsetFetchReqV0 (ConsumerGroup, [(TopicName, [Partition])]) deriving (Show, Eq, Serializable)
 newtype ConsumerGroup = ConsumerGroup KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
 newtype Metadata = Metadata KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
@@ -412,6 +439,34 @@ instance Deserializable Int64 where deserialize = fmap fromIntegral getWord64be
 instance Deserializable Int32 where deserialize = fmap fromIntegral getWord32be
 instance Deserializable Int16 where deserialize = fmap fromIntegral getWord16be
 instance Deserializable Int8  where deserialize = fmap fromIntegral getWord8
+
+instance RequestValue (MetadataRequest req resp) where
+  type ReqValue (MetadataRequest req resp) = req
+  requestValue (MetadataRequestV0 r) = r
+
+instance RequestValue (ProduceRequest req resp) where
+  type ReqValue (ProduceRequest req resp) = req
+  requestValue (ProduceRequestV0 r) = r
+
+instance RequestValue (FetchRequest req resp) where
+  type ReqValue (FetchRequest req resp) = req
+  requestValue (FetchRequestV0 r) = r
+
+instance RequestValue (OffsetRequest req resp) where
+  type ReqValue (OffsetRequest req resp) = req
+  requestValue (OffsetRequestV0 r) = r
+
+instance RequestValue (OffsetCommitRequest req resp) where
+  type ReqValue (OffsetCommitRequest req resp) = req
+  requestValue (OffsetCommitRequestV0 r) = r
+
+instance RequestValue (OffsetFetchRequest req resp) where
+  type ReqValue (OffsetFetchRequest req resp) = req
+  requestValue (OffsetFetchRequestV0 r) = r
+
+instance RequestValue (GroupCoordinatorRequest req resp) where
+  type ReqValue (GroupCoordinatorRequest req resp) = req
+  requestValue (GroupCoordinatorRequestV0 r) = r
 
 -- * Generated lenses
 
