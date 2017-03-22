@@ -211,12 +211,11 @@ newtype MessageSet =
   MessageSet { _messageSetMembers :: [MessageSetMember] } deriving (Show, Eq)
 data MessageSetMember =
   MessageSetMember { _setOffset :: Offset, _setMessage :: Message } deriving (Show, Eq)
-
+            
 newtype Offset = Offset Int64 deriving (Show, Eq, Serializable, Deserializable, Num, Integral, Ord, Real, Enum)
 
-newtype Message =
-  Message { _messageFields :: (Crc, MagicByte, Attributes, Key, Value) }
-  deriving (Show, Eq, Deserializable)
+data Message = Message { _messageFields :: (Crc, MagicByte, Attributes, Key, Value) }
+  deriving (Show, Eq)
 
 newtype Crc = Crc Int32 deriving (Show, Eq, Serializable, Deserializable, Num, Integral, Ord, Real, Enum)
 newtype MagicByte = MagicByte Int8 deriving (Show, Eq, Serializable, Deserializable, Num, Integral, Ord, Real, Enum)
@@ -461,6 +460,11 @@ instance Deserializable MessageSetMember where
     l <- deserialize :: Get Int32
     m <- isolate (fromIntegral l) deserialize
     return $ MessageSetMember o m
+
+instance Deserializable Message where
+deserialize = do
+  values <- deserialize :: Get (Crc, MagicByte, Attributes, Key, Value)
+  return . Message $ values
 
 instance Deserializable Leader where
   deserialize = do
