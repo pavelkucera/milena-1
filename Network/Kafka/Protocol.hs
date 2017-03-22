@@ -124,6 +124,7 @@ newtype Isr = Isr [Int32] deriving (Show, Eq, Deserializable)
 
 newtype OffsetCommitResponseV0 = OffsetCommitRespV0 [(TopicName, [(Partition, KafkaError)])] deriving (Show, Eq, Deserializable)
 newtype OffsetFetchResponseV0 = OffsetFetchRespV0 [(TopicName, [(Partition, Offset, Metadata, KafkaError)])] deriving (Show, Eq, Deserializable)
+newtype OffsetFetchResponseV1 = OffsetFetchRespV1 [(TopicName, [(Partition, Offset, Metadata, KafkaError)])] deriving (Show, Eq, Deserializable)
 
 data OffsetRequest req resp where
   OffsetRequestV0 :: OffsetRequestV0 -> OffsetRequest OffsetRequestV0 OffsetResponseV0
@@ -190,8 +191,11 @@ newtype OffsetCommitRequestV0 = OffsetCommitReqV0 (ConsumerGroup, [(TopicName, [
 
 data OffsetFetchRequest req resp where
   OffsetFetchRequestV0 :: OffsetFetchRequestV0 -> OffsetFetchRequest OffsetFetchRequestV0 OffsetFetchResponseV0
+  OffsetFetchRequestV1 :: OffsetFetchRequestV1 -> OffsetFetchRequest OffsetFetchRequestV1 OffsetFetchResponseV1
 
 newtype OffsetFetchRequestV0 = OffsetFetchReqV0 (ConsumerGroup, [(TopicName, [Partition])]) deriving (Show, Eq, Serializable)
+newtype OffsetFetchRequestV1 = OffsetFetchReqV1 (ConsumerGroup, [(TopicName, [Partition])]) deriving (Show, Eq, Serializable)
+
 newtype ConsumerGroup = ConsumerGroup KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
 newtype Metadata = Metadata KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
 
@@ -278,7 +282,8 @@ requestBytes x = runPut $ do
     where mr = runPut $ serialize x
 
 apiVersion :: RequestMessage req resp -> ApiVersion
-apiVersion _ = ApiVersion 0 -- everything is at version 0 right now
+apiVersion (OffsetFetchRequest OffsetFetchRequestV1{}) = ApiVersion 1
+apiVersion _ = ApiVersion 0
 
 apiKey :: RequestMessage req resp -> ApiKey
 apiKey ProduceRequest{} = ApiKey 0
@@ -455,6 +460,7 @@ instance RequestValue (OffsetCommitRequest req resp) where
 instance RequestValue (OffsetFetchRequest req resp) where
   type ReqValue (OffsetFetchRequest req resp) = req
   requestValue (OffsetFetchRequestV0 r) = r
+  requestValue (OffsetFetchRequestV1 r) = r
 
 instance RequestValue (GroupCoordinatorRequest req resp) where
   type ReqValue (GroupCoordinatorRequest req resp) = req
