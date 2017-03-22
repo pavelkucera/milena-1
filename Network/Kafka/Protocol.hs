@@ -106,6 +106,14 @@ newtype PartitionOffsetsV0 =
   PartitionOffsetsV0 { _partitionOffsetsFieldsV0 :: (Partition, KafkaError, [Offset]) }
   deriving (Show, Eq, Deserializable)
 
+newtype OffsetResponseV1 =
+  OffsetRespV1 { _offsetResponseFieldsV1 :: [(TopicName, [PartitionOffsetsV1])] }
+  deriving (Show, Eq, Deserializable)
+
+newtype PartitionOffsetsV1 =
+  PartitionOffsetsV1 { _partitionOffsetsFieldsV1 :: (Partition, KafkaError, Time, Offset) }
+  deriving (Show, Eq, Deserializable)
+
 newtype FetchResponseV0 =
   FetchRespV0 { _fetchResponseFieldsV0 :: [(TopicName, [(Partition, KafkaError, Offset, MessageSet)])] }
   deriving (Show, Eq, Serializable, Deserializable)
@@ -133,9 +141,12 @@ newtype OffsetFetchResponseV1 = OffsetFetchRespV1 [(TopicName, [(Partition, Offs
 
 data OffsetRequest req resp where
   OffsetRequestV0 :: OffsetRequestV0 -> OffsetRequest OffsetRequestV0 OffsetResponseV0
+  OffsetRequestV1 :: OffsetRequestV1 -> OffsetRequest OffsetRequestV1 OffsetResponseV1
 
 newtype OffsetRequestV0 = OffsetReqV0 (ReplicaId, [(TopicName, [(Partition, Time, MaxNumberOfOffsets)])]) deriving (Show, Eq, Serializable)
-newtype Time = Time { _timeInt :: Int64 } deriving (Show, Eq, Serializable, Num, Integral, Ord, Real, Enum, Bounded)
+newtype OffsetRequestV1 = OffsetReqV1 (ReplicaId, [(TopicName, [(Partition, Time, MaxNumberOfOffsets)])]) deriving (Show, Eq, Serializable)
+
+newtype Time = Time { _timeInt :: Int64 } deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum, Bounded)
 newtype MaxNumberOfOffsets = MaxNumberOfOffsets Int32 deriving (Show, Eq, Serializable, Num, Integral, Ord, Real, Enum)
 
 data FetchRequest req resp where
@@ -295,6 +306,7 @@ requestBytes x = runPut $ do
 apiVersion :: RequestMessage req resp -> ApiVersion
 apiVersion (OffsetFetchRequest OffsetFetchRequestV1{}) = ApiVersion 1
 apiVersion (FetchRequest FetchRequestV1{}) = ApiVersion 1
+apiVersion (OffsetRequest OffsetRequestV1{}) = ApiVersion 1
 apiVersion _ = ApiVersion 0
 
 apiKey :: RequestMessage req resp -> ApiKey
@@ -465,6 +477,7 @@ instance RequestValue (FetchRequest req resp) where
 instance RequestValue (OffsetRequest req resp) where
   type ReqValue (OffsetRequest req resp) = req
   requestValue (OffsetRequestV0 r) = r
+  requestValue (OffsetRequestV1 r) = r
 
 instance RequestValue (OffsetCommitRequest req resp) where
   type ReqValue (OffsetCommitRequest req resp) = req
@@ -489,7 +502,9 @@ makeLenses ''KafkaString
 makeLenses ''ProduceResponseV0
 
 makeLenses ''OffsetResponseV0
+makeLenses ''OffsetResponseV1
 makeLenses ''PartitionOffsetsV0
+makeLenses ''PartitionOffsetsV1
 
 makeLenses ''FetchResponseV0
 makeLenses ''FetchResponseV1
