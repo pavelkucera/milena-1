@@ -110,11 +110,16 @@ newtype FetchResponseV0 =
   FetchRespV0 { _fetchResponseFieldsV0 :: [(TopicName, [(Partition, KafkaError, Offset, MessageSet)])] }
   deriving (Show, Eq, Serializable, Deserializable)
 
+newtype FetchResponseV1 =
+  FetchRespV1 { _fetchResponseFieldsV1 :: (ThrottleTimeMs, [(TopicName, [(Partition, KafkaError, Offset, MessageSet)])]) }
+  deriving (Show, Eq, Serializable, Deserializable)
+
 newtype MetadataResponseV0 = MetadataRespV0 { _metadataResponseFieldsV0 :: ([Broker], [TopicMetadata]) } deriving (Show, Eq, Deserializable)
 newtype Broker = Broker { _brokerFields :: (NodeId, Host, Port) } deriving (Show, Eq, Ord, Deserializable)
 newtype NodeId = NodeId { _nodeId :: Int32 } deriving (Show, Eq, Deserializable, Num, Integral, Ord, Real, Enum)
 newtype Host = Host { _hostKString :: KafkaString } deriving (Show, Eq, Ord, Deserializable, IsString)
 newtype Port = Port { _portInt :: Int32 } deriving (Show, Eq, Deserializable, Num, Integral, Ord, Real, Enum)
+newtype ThrottleTimeMs = ThrottleTimeMs { _throttleTimeMs :: Int32 } deriving (Show, Eq, Deserializable, Num, Serializable, Integral, Ord, Real, Enum)
 newtype TopicMetadata = TopicMetadata { _topicMetadataFields :: (KafkaError, TopicName, [PartitionMetadata]) } deriving (Show, Eq, Deserializable)
 newtype PartitionMetadata = PartitionMetadata { _partitionMetadataFields :: (KafkaError, Partition, Leader, Replicas, Isr) } deriving (Show, Eq, Deserializable)
 newtype Leader = Leader { _leaderId :: Maybe Int32 } deriving (Show, Eq, Ord)
@@ -135,11 +140,17 @@ newtype MaxNumberOfOffsets = MaxNumberOfOffsets Int32 deriving (Show, Eq, Serial
 
 data FetchRequest req resp where
   FetchRequestV0 :: FetchRequestV0 -> FetchRequest FetchRequestV0 FetchResponseV0
+  FetchRequestV1 :: FetchRequestV1 -> FetchRequest FetchRequestV1 FetchResponseV1
 
 newtype FetchRequestV0 =
   FetchReqV0 (ReplicaId, MaxWaitTime, MinBytes,
             [(TopicName, [(Partition, Offset, MaxBytes)])])
   deriving (Show, Eq, Deserializable, Serializable)
+
+newtype FetchRequestV1 =
+  FetchReqV1 (ReplicaId, MaxWaitTime, MinBytes,
+              [(TopicName, [(Partition, Offset, MaxBytes)])])
+    deriving (Show, Eq, Deserializable, Serializable)
 
 newtype ReplicaId = ReplicaId Int32 deriving (Show, Eq, Num, Integral, Ord, Real, Enum, Serializable, Deserializable)
 newtype MaxWaitTime = MaxWaitTime Int32 deriving (Show, Eq, Num, Integral, Ord, Real, Enum, Serializable, Deserializable)
@@ -283,6 +294,7 @@ requestBytes x = runPut $ do
 
 apiVersion :: RequestMessage req resp -> ApiVersion
 apiVersion (OffsetFetchRequest OffsetFetchRequestV1{}) = ApiVersion 1
+apiVersion (FetchRequest FetchRequestV1{}) = ApiVersion 1
 apiVersion _ = ApiVersion 0
 
 apiKey :: RequestMessage req resp -> ApiKey
@@ -448,6 +460,7 @@ instance RequestValue (ProduceRequest req resp) where
 instance RequestValue (FetchRequest req resp) where
   type ReqValue (FetchRequest req resp) = req
   requestValue (FetchRequestV0 r) = r
+  requestValue (FetchRequestV1 r) = r
 
 instance RequestValue (OffsetRequest req resp) where
   type ReqValue (OffsetRequest req resp) = req
@@ -479,6 +492,7 @@ makeLenses ''OffsetResponseV0
 makeLenses ''PartitionOffsetsV0
 
 makeLenses ''FetchResponseV0
+makeLenses ''FetchResponseV1
 
 makeLenses ''MetadataResponseV0
 makeLenses ''Broker
