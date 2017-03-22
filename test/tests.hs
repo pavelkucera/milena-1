@@ -11,7 +11,7 @@ import Control.Monad.Trans (liftIO)
 import Network.Kafka
 import Network.Kafka.Consumer
 import Network.Kafka.Producer
-import Network.Kafka.Protocol (ProduceResponseV1(..), KafkaError(..))
+import Network.Kafka.Protocol (ProduceResponseV2(..), KafkaError(..))
 import Test.Tasty
 import Test.Tasty.Hspec
 import Test.Tasty.QuickCheck
@@ -60,7 +60,7 @@ specs = do
           Just PartitionAndLeader { _palLeader = leader, _palPartition = partition } -> do
             let payload = [(TopicAndPartition topic partition, groupMessagesToSet messages)]
                 s = stateBrokers . at leader
-            ([(_topicName, [(_, NoError, offset)])], _) <- _produceResponseFieldsV1 <$> send leader payload
+            ([(_topicName, [(_, NoError, offset, _)])], _) <- _produceResponseFieldsV2 <$> send leader payload
             broker <- findMetadataOrElse [topic] s (KafkaInvalidBroker leader)
             resp <- withBrokerHandle broker (\handle -> fetch' handle =<< fetchRequest offset partition topic)
             return $ fmap tamPayload . fetchMessages $ resp
@@ -76,8 +76,8 @@ specs = do
         requireAllAcks
         produceResps <- produceMessages messages
 
-        case map _produceResponseFieldsV1 produceResps of
-          [([(_topicName, [(partition, NoError, offset)])], _)] -> do
+        case map _produceResponseFieldsV2 produceResps of
+          [([(_topicName, [(partition, NoError, offset, _)])], _)] -> do
             resp <- fetch offset partition topic
             return $ fmap tamPayload . fetchMessages $ resp
 

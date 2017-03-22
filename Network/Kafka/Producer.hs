@@ -22,17 +22,17 @@ import Network.Kafka.Protocol
 -- * Producing
 
 -- | Execute a produce request and get the raw produce response.
-produce :: Kafka m => Handle -> ProduceRequest ProduceRequestV1 ProduceResponseV1 -> m ProduceResponseV1
+produce :: Kafka m => Handle -> ProduceRequest ProduceRequestV2 ProduceResponseV2 -> m ProduceResponseV2
 produce handle request = makeRequest handle $ ProduceRR request
 
 -- | Construct a produce request with explicit arguments.
-produceRequest :: RequiredAcks -> Timeout -> [(TopicAndPartition, MessageSet)] -> ProduceRequest ProduceRequestV1 ProduceResponseV1
+produceRequest :: RequiredAcks -> Timeout -> [(TopicAndPartition, MessageSet)] -> ProduceRequest ProduceRequestV2 ProduceResponseV2
 produceRequest ra ti ts =
-    ProduceRequestV1 $ ProduceReqV1 (ra, ti, M.toList . M.unionsWith (<>) $ fmap f ts)
+    ProduceRequestV2 $ ProduceReqV2 (ra, ti, M.toList . M.unionsWith (<>) $ fmap f ts)
         where f (TopicAndPartition t p, i) = M.singleton t [(p, i)]
 
 -- | Send messages to partition calculated by 'partitionAndCollate'.
-produceMessages :: Kafka m => [TopicAndMessage] -> m [ProduceResponseV1]
+produceMessages :: Kafka m => [TopicAndMessage] -> m [ProduceResponseV2]
 produceMessages tams = do
   m <- fmap (fmap groupMessagesToSet) <$> partitionAndCollate tams
   mapM (uncurry send) $ fmap M.toList <$> M.toList m
@@ -69,7 +69,7 @@ getPartitionByKey key ps = Set.toAscList ps ^? ix i
         i = x `mod` numPartitions
 
 -- | Execute a produce request using the values in the state.
-send :: Kafka m => Leader -> [(TopicAndPartition, MessageSet)] -> m ProduceResponseV1
+send :: Kafka m => Leader -> [(TopicAndPartition, MessageSet)] -> m ProduceResponseV2
 send l ts = do
   let s = stateBrokers . at l
       topicNames = map (_tapTopic . fst) ts
