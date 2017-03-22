@@ -380,6 +380,10 @@ instance Serializable Int32 where serialize = putWord32be . fromIntegral
 instance Serializable Int16 where serialize = putWord16be . fromIntegral
 instance Serializable Int8  where serialize = putWord8    . fromIntegral
 
+instance Serializable Bool where
+  serialize True = serialize (1 :: Int8)
+  serialize False = serialize (0 :: Int8)
+
 instance Serializable Key where
   serialize (Key (Just bs)) = serialize bs
   serialize (Key Nothing)   = serialize (-1 :: Int32)
@@ -484,6 +488,14 @@ instance Deserializable KafkaNullableString where
       _ -> do
         bs <- getByteString $ fromIntegral l
         return $ KNString (Just bs)
+
+instance Deserializable Bool where
+  deserialize = do
+    v <- deserialize :: Get Int8
+    case v of
+      0 -> return False
+      1 -> return True
+      _ -> fail $ "Unexpected Bool value " ++ show v
 
 instance Deserializable Key where
   deserialize = do
