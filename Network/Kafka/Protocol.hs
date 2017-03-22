@@ -93,6 +93,7 @@ instance Show TopicName where
 
 newtype KafkaBytes = KBytes { _kafkaByteString :: ByteString } deriving (Show, Eq, IsString)
 newtype KafkaString = KString { _kString :: ByteString } deriving (Show, Eq, Ord, IsString)
+newtype KafkaNullableString = KNString { _KNString :: Maybe ByteString } deriving (Show, Eq, Ord)
 
 newtype ProduceResponseV0 =
   ProduceRespV0 { _produceResponseFieldsV0 :: [(TopicName, [(Partition, KafkaError, Offset)])] }
@@ -287,6 +288,10 @@ data KafkaError = NoError -- ^ @0@ No error--it worked!
                 | NotCoordinatorForConsumerCode -- ^ @16@ The broker returns this error code if it receives an offset fetch or commit request for a consumer group that it is not a coordinator for.
                 deriving (Eq, Show)
 
+instance IsString KafkaNullableString where
+  fromString [] = KNString Nothing
+  fromString x = KNString (Just (fromString x))
+
 instance Serializable KafkaError where
   serialize = serialize . errorKafka
 
@@ -377,6 +382,10 @@ instance Serializable KafkaString where
     serialize l
     putByteString bs
 
+instance Serializable KafkaNullableString where
+  serialize (KNString (Just bs)) = serialize (KString bs)
+  serialize (KNString Nothing) = serialize (-1 :: Int16)
+
 instance Serializable MessageSet where
   serialize (MessageSet ms) = do
     let bytes = runPut $ mapM_ serialize ms
@@ -454,6 +463,15 @@ instance Deserializable KafkaString where
     l <- deserialize :: Get Int16
     bs <- getByteString $ fromIntegral l
     return $ KString bs
+
+instance Deserializable KafkaNullableString where
+  deserialize = do
+    l <- deserialize :: Get Int16
+    case l of
+      -1 -> return $ KNString Nothing
+      _ -> do
+        bs <- getByteString $ fromIntegral l
+        return $ KNString (Just bs)
 
 instance Deserializable Key where
   deserialize = do
