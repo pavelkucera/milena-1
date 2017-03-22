@@ -98,6 +98,10 @@ newtype ProduceResponseV0 =
   ProduceRespV0 { _produceResponseFieldsV0 :: [(TopicName, [(Partition, KafkaError, Offset)])] }
   deriving (Show, Eq, Deserializable, Serializable)
 
+newtype ProduceResponseV1 =
+  ProduceRespV1 { _produceResponseFieldsV1 :: ([(TopicName, [(Partition, KafkaError, Offset)])], ThrottleTimeMs) }
+  deriving (Show, Eq, Deserializable, Serializable)
+
 newtype OffsetResponseV0 =
   OffsetRespV0 { _offsetResponseFieldsV0 :: [(TopicName, [PartitionOffsetsV0])] }
   deriving (Show, Eq, Deserializable)
@@ -170,9 +174,15 @@ newtype MaxBytes = MaxBytes Int32 deriving (Show, Eq, Num, Integral, Ord, Real, 
 
 data ProduceRequest req resp where
   ProduceRequestV0 :: ProduceRequestV0 -> ProduceRequest ProduceRequestV0 ProduceResponseV0
+  ProduceRequestV1 :: ProduceRequestV1 -> ProduceRequest ProduceRequestV1 ProduceResponseV1
 
 newtype ProduceRequestV0 =
   ProduceReqV0 (RequiredAcks, Timeout,
+              [(TopicName, [(Partition, MessageSet)])])
+  deriving (Show, Eq, Serializable)
+
+newtype ProduceRequestV1 =
+  ProduceReqV1 (RequiredAcks, Timeout,
               [(TopicName, [(Partition, MessageSet)])])
   deriving (Show, Eq, Serializable)
 
@@ -307,6 +317,7 @@ apiVersion :: RequestMessage req resp -> ApiVersion
 apiVersion (OffsetFetchRequest OffsetFetchRequestV1{}) = ApiVersion 1
 apiVersion (FetchRequest FetchRequestV1{}) = ApiVersion 1
 apiVersion (OffsetRequest OffsetRequestV1{}) = ApiVersion 1
+apiVersion (ProduceRequest ProduceRequestV1{}) = ApiVersion 1
 apiVersion _ = ApiVersion 0
 
 apiKey :: RequestMessage req resp -> ApiKey
@@ -468,6 +479,7 @@ instance RequestValue (MetadataRequest req resp) where
 instance RequestValue (ProduceRequest req resp) where
   type ReqValue (ProduceRequest req resp) = req
   requestValue (ProduceRequestV0 r) = r
+  requestValue (ProduceRequestV1 r) = r
 
 instance RequestValue (FetchRequest req resp) where
   type ReqValue (FetchRequest req resp) = req
@@ -500,6 +512,7 @@ makeLenses ''KafkaBytes
 makeLenses ''KafkaString
 
 makeLenses ''ProduceResponseV0
+makeLenses ''ProduceResponseV1
 
 makeLenses ''OffsetResponseV0
 makeLenses ''OffsetResponseV1
