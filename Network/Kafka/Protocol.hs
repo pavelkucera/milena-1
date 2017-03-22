@@ -144,6 +144,8 @@ newtype Replicas = Replicas [Int32] deriving (Show, Eq, Serializable, Deserializ
 newtype Isr = Isr [Int32] deriving (Show, Eq, Deserializable)
 
 newtype OffsetCommitResponseV0 = OffsetCommitRespV0 [(TopicName, [(Partition, KafkaError)])] deriving (Show, Eq, Deserializable)
+newtype OffsetCommitResponseV1 = OffsetCommitRespV1 [(TopicName, [(Partition, KafkaError)])] deriving (Show, Eq, Deserializable)
+
 newtype OffsetFetchResponseV0 = OffsetFetchRespV0 [(TopicName, [(Partition, Offset, Metadata, KafkaError)])] deriving (Show, Eq, Deserializable)
 newtype OffsetFetchResponseV1 = OffsetFetchRespV1 [(TopicName, [(Partition, Offset, Metadata, KafkaError)])] deriving (Show, Eq, Deserializable)
 
@@ -228,8 +230,14 @@ newtype GroupCoordinatorRequestV0 = GroupCoordinatorReqV0 ConsumerGroup deriving
 
 data OffsetCommitRequest req resp where
   OffsetCommitRequestV0 :: OffsetCommitRequestV0 -> OffsetCommitRequest OffsetCommitRequestV0 OffsetCommitResponseV0
+  OffsetCommitRequestV1 :: OffsetCommitRequestV1 -> OffsetCommitRequest OffsetCommitRequestV1 OffsetCommitResponseV1
 
 newtype OffsetCommitRequestV0 = OffsetCommitReqV0 (ConsumerGroup, [(TopicName, [(Partition, Offset, Time, Metadata)])]) deriving (Show, Eq, Serializable)
+
+newtype OffsetCommitRequestV1 = OffsetCommitReqV1 (ConsumerGroup, GroupGenerationId, MemberId, [(TopicName, [(Partition, Offset, Time, Metadata)])]) deriving (Show, Eq, Serializable)
+
+newtype GroupGenerationId = GroupGenerationId { _groupGenerationId :: Int32 } deriving (Show, Eq, Serializable)
+newtype MemberId = MemberId { _memberId :: KafkaString } deriving (Show, Eq, Serializable)
 
 data OffsetFetchRequest req resp where
   OffsetFetchRequestV0 :: OffsetFetchRequestV0 -> OffsetFetchRequest OffsetFetchRequestV0 OffsetFetchResponseV0
@@ -329,6 +337,7 @@ apiVersion (FetchRequest FetchRequestV1{}) = ApiVersion 1
 apiVersion (OffsetRequest OffsetRequestV1{}) = ApiVersion 1
 apiVersion (ProduceRequest ProduceRequestV1{}) = ApiVersion 1
 apiVersion (ProduceRequest ProduceRequestV2{}) = ApiVersion 2
+apiVersion (OffsetCommitRequest OffsetCommitRequestV1{}) = ApiVersion 1
 apiVersion _ = ApiVersion 0
 
 apiKey :: RequestMessage req resp -> ApiKey
@@ -506,6 +515,7 @@ instance RequestValue (OffsetRequest req resp) where
 instance RequestValue (OffsetCommitRequest req resp) where
   type ReqValue (OffsetCommitRequest req resp) = req
   requestValue (OffsetCommitRequestV0 r) = r
+  requestValue (OffsetCommitRequestV1 r) = r
 
 instance RequestValue (OffsetFetchRequest req resp) where
   type ReqValue (OffsetFetchRequest req resp) = req
