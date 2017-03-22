@@ -727,8 +727,8 @@ messageValue = messageFields . _5
 payload :: Fold Message ByteString
 payload = messageValue . valueBytes . folded . kafkaByteString
 
-offsetResponseOffset :: Partition -> Fold OffsetResponseV0 Offset
-offsetResponseOffset p = offsetResponseFieldsV0 . folded . _2 . folded . partitionOffsetsFieldsV0 . keyed p . _3 . folded
+offsetResponseOffset :: Partition -> Fold OffsetResponseV1 Offset
+offsetResponseOffset p = offsetResponseFieldsV1 . folded . _2 . folded . partitionOffsetsFieldsV1 . keyed p . _4
 
 messageSet :: Partition -> TopicName -> Fold FetchResponseV1 MessageSetMember
 messageSet p t = fetchResponseByTopic t . messageSetByPartition p

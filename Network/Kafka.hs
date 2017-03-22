@@ -319,14 +319,14 @@ getLastOffset m p t = do
 -- | Get the first found offset.
 getLastOffset' :: Kafka m => Handle -> KafkaTime -> Partition -> TopicName -> m Offset
 getLastOffset' h m p t = do
-  let offsetRR = OffsetRR . OffsetRequestV0 $ offsetRequest [(TopicAndPartition t p, PartitionOffsetRequestInfo m 1)]
+  let offsetRR = OffsetRR . OffsetRequestV1 $ offsetRequest [(TopicAndPartition t p, PartitionOffsetRequestInfo m 1)]
   offsetResponse <- makeRequest h offsetRR
   let maybeResp = firstOf (offsetResponseOffset p) offsetResponse
   maybe (throwError KafkaNoOffset) return maybeResp
 
 -- | Create an offset request.
-offsetRequest :: [(TopicAndPartition, PartitionOffsetRequestInfo)] -> OffsetRequestV0
+offsetRequest :: [(TopicAndPartition, PartitionOffsetRequestInfo)] -> OffsetRequestV1
 offsetRequest ts =
-    OffsetReqV0 (ReplicaId (-1), M.toList . M.unionsWith (<>) $ fmap f ts)
+    OffsetReqV1 (ReplicaId (-1), M.toList . M.unionsWith (<>) $ fmap f ts)
         where f (TopicAndPartition t p, i) = M.singleton t [g p i]
               g p (PartitionOffsetRequestInfo kt mno) = (p, protocolTime kt, mno)
