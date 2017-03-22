@@ -693,16 +693,16 @@ brokerHost = brokerFields . _2
 brokerPort :: Lens' Broker Port
 brokerPort = brokerFields . _3
 
-fetchResponseMessages :: Fold FetchResponseV0 MessageSet
-fetchResponseMessages = fetchResponseFieldsV0 . folded . _2 . folded . _4
+fetchResponseMessages :: Fold FetchResponseV1 MessageSet
+fetchResponseMessages = fetchResponseFieldsV1 . _2 . folded . _2 . folded . _4
 
-fetchResponseByTopic :: TopicName -> Fold FetchResponseV0 (Partition, KafkaError, Offset, MessageSet)
-fetchResponseByTopic t = fetchResponseFieldsV0 . folded . keyed t . _2 . folded
+fetchResponseByTopic :: TopicName -> Fold FetchResponseV1 (Partition, KafkaError, Offset, MessageSet)
+fetchResponseByTopic t = fetchResponseFieldsV1 . _2 . folded . keyed t . _2 . folded
 
 messageSetByPartition :: Partition -> Fold (Partition, KafkaError, Offset, MessageSet) MessageSetMember
 messageSetByPartition p = keyed p . _4 . messageSetMembers . folded
 
-fetchResponseMessageMembers :: Fold FetchResponseV0 MessageSetMember
+fetchResponseMessageMembers :: Fold FetchResponseV1 MessageSetMember
 fetchResponseMessageMembers = fetchResponseMessages . messageSetMembers . folded
 
 messageFields :: Lens' Message (Crc, MagicByte, Attributes, Key, Value)
@@ -730,7 +730,7 @@ payload = messageValue . valueBytes . folded . kafkaByteString
 offsetResponseOffset :: Partition -> Fold OffsetResponseV0 Offset
 offsetResponseOffset p = offsetResponseFieldsV0 . folded . _2 . folded . partitionOffsetsFieldsV0 . keyed p . _3 . folded
 
-messageSet :: Partition -> TopicName -> Fold FetchResponseV0 MessageSetMember
+messageSet :: Partition -> TopicName -> Fold FetchResponseV1 MessageSetMember
 messageSet p t = fetchResponseByTopic t . messageSetByPartition p
 
 nextOffset :: Lens' MessageSetMember Offset
