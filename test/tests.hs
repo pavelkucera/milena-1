@@ -30,17 +30,19 @@ specs = do
         stateRequiredAcks .= -1
         stateWaitSize .= 1
         stateWaitTime .= 1000
-      byteMessages = fmap (TopicAndMessage topic . makeMessage . B.pack)
+      byteMessages time = fmap (TopicAndMessage topic . makeMessage time . B.pack)
 
   describe "can talk to local Kafka server" $ do
     prop "can produce messages" $ \ms -> do
-      result <- run . produceMessages $ byteMessages ms
+      time <- liftIO currentTime
+      result <- run . produceMessages $ byteMessages time ms
       result `shouldSatisfy` isRight
 
     prop "can produce multiple messages" $ \(ms, ms') -> do
       result <- run $ do
-        r1 <- produceMessages $ byteMessages ms
-        r2 <- produceMessages $ byteMessages ms'
+        time <- liftIO currentTime
+        r1 <- produceMessages $ byteMessages time ms
+        r2 <- produceMessages $ byteMessages time ms'
         return $ r1 ++ r2
       result `shouldSatisfy` isRight
 
@@ -51,7 +53,8 @@ specs = do
       result `shouldSatisfy` isRight
 
     prop "can roundtrip messages" $ \ms key -> do
-      let messages = byteMessages ms
+      time <- liftIO currentTime
+      let messages = byteMessages time ms
       result <- run $ do
         requireAllAcks
         info <- brokerPartitionInfo topic
@@ -70,8 +73,9 @@ specs = do
       result `shouldBe` Right (tamPayload <$> messages)
 
     prop "can roundtrip keyed messages" $ \(NonEmpty ms) key -> do
+      time <- liftIO currentTime
       let keyBytes = B.pack key
-          messages = fmap (TopicAndMessage topic . makeKeyedMessage keyBytes . B.pack) ms
+          messages = fmap (TopicAndMessage topic . makeKeyedMessage time keyBytes . B.pack) ms
       result <- run $ do
         requireAllAcks
         produceResps <- produceMessages messages

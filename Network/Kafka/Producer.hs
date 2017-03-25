@@ -10,6 +10,7 @@ import Control.Monad.Trans (liftIO)
 import Data.Monoid ((<>))
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import System.IO
 import qualified Data.Map as M
 import System.Random (getStdRandom, randomR)
@@ -91,7 +92,7 @@ defaultMessageCrc = 1
 
 -- | Default: @0@
 defaultMessageMagicByte :: MagicByte
-defaultMessageMagicByte = 0
+defaultMessageMagicByte = 1
 
 -- | Default: @Nothing@
 defaultMessageKey :: Key
@@ -101,10 +102,16 @@ defaultMessageKey = Key Nothing
 defaultMessageAttributes :: Attributes
 defaultMessageAttributes = 0
 
--- | Construct a message from a string of bytes using default attributes.
-makeMessage :: ByteString -> Message
-makeMessage m = MessageV0 (defaultMessageCrc, defaultMessageMagicByte, defaultMessageAttributes, defaultMessageKey, Value (Just (KBytes m)))
+currentTime :: IO Time
+currentTime = do
+  time <- getPOSIXTime
+  let milliseconds = floor $ time * 1000
+  return $ Time milliseconds
 
--- | Construct a message from a string of bytes using default attributes.
-makeKeyedMessage :: ByteString -> ByteString -> Message
-makeKeyedMessage k m = MessageV0 (defaultMessageCrc, defaultMessageMagicByte, defaultMessageAttributes, Key (Just (KBytes k)), Value (Just (KBytes m)))
+-- | Construct a message from time and a string of bytes using default attributes.
+makeMessage :: Time -> ByteString -> Message
+makeMessage t m = MessageV1 (defaultMessageCrc, defaultMessageMagicByte, defaultMessageAttributes, t, defaultMessageKey, Value (Just (KBytes m)))
+
+-- | Construct a message from time and a string of bytes using default attributes.
+makeKeyedMessage :: Time -> ByteString -> ByteString -> Message
+makeKeyedMessage t k m = MessageV1 (defaultMessageCrc, defaultMessageMagicByte, defaultMessageAttributes, t, Key (Just (KBytes k)), Value (Just (KBytes m)))
