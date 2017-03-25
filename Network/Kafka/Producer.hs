@@ -22,13 +22,13 @@ import Network.Kafka.Protocol
 -- * Producing
 
 -- | Execute a produce request and get the raw produce response.
-produce :: Kafka m => Handle -> ProduceRequestV0 -> m ProduceResponseV0
+produce :: Kafka m => Handle -> ProduceRequest ProduceRequestV0 ProduceResponseV0 -> m ProduceResponseV0
 produce handle request = makeRequest handle $ ProduceRR request
 
 -- | Construct a produce request with explicit arguments.
-produceRequest :: RequiredAcks -> Timeout -> [(TopicAndPartition, MessageSet)] -> ProduceRequestV0
+produceRequest :: RequiredAcks -> Timeout -> [(TopicAndPartition, MessageSet)] -> ProduceRequest ProduceRequestV0 ProduceResponseV0
 produceRequest ra ti ts =
-    ProduceReqV0 (ra, ti, M.toList . M.unionsWith (<>) $ fmap f ts)
+    ProduceRequestV0 $ ProduceReqV0 (ra, ti, M.toList . M.unionsWith (<>) $ fmap f ts)
         where f (TopicAndPartition t p, i) = M.singleton t [(p, i)]
 
 -- | Send messages to partition calculated by 'partitionAndCollate'.

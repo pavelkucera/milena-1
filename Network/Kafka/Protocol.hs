@@ -28,13 +28,13 @@ import Prelude hiding ((.), id)
 import qualified Data.ByteString.Char8 as B
 import qualified Network
 
-data ReqResp a where
-  MetadataRR :: MonadIO m => MetadataRequestV0 -> ReqResp (m MetadataResponseV0)
-  ProduceRR  :: MonadIO m => ProduceRequestV0  -> ReqResp (m ProduceResponseV0)
-  FetchRR    :: MonadIO m => FetchRequestV0    -> ReqResp (m FetchResponseV0)
-  OffsetRR   :: MonadIO m => OffsetRequestV0   -> ReqResp (m OffsetResponseV0)
+data ReqResp req resp where
+  MetadataRR :: MetadataRequest req resp -> ReqResp req resp
+  ProduceRR :: ProduceRequest req resp -> ReqResp req resp
+  FetchRR :: FetchRequest req resp -> ReqResp req resp
+  OffsetRR :: OffsetRequest req resp -> ReqResp req resp
 
-doRequest' :: (Deserializable a, MonadIO m) => CorrelationId -> Handle -> Request -> m (Either String a)
+doRequest' :: (Serializable req, Deserializable resp, MonadIO m) => CorrelationId -> Handle -> Request req resp -> m (Either String resp)
 doRequest' correlationId h r = do
   rawLength <- liftIO $ do
     B.hPut h $ requestBytes r
@@ -49,11 +49,13 @@ doRequest' correlationId h r = do
         unless (correlationId == correlationId') $ fail ("Expected " ++ show correlationId ++ " but got " ++ show correlationId')
         isolate (dataLength - 4) deserialize
 
-doRequest :: MonadIO m => ClientId -> CorrelationId -> Handle -> ReqResp (m a) -> m (Either String a)
-doRequest clientId correlationId h (MetadataRR req) = doRequest' correlationId h $ Request (correlationId, clientId, MetadataRequest req)
-doRequest clientId correlationId h (ProduceRR req)  = doRequest' correlationId h $ Request (correlationId, clientId, ProduceRequest req)
-doRequest clientId correlationId h (FetchRR req)    = doRequest' correlationId h $ Request (correlationId, clientId, FetchRequest req)
-doRequest clientId correlationId h (OffsetRR req)   = doRequest' correlationId h $ Request (correlationId, clientId, OffsetRequest req)
+doRequest :: (MonadIO m, Serializable req, Deserializable resp) => ClientId -> CorrelationId -> Handle -> ReqResp req resp -> m (Either String resp)
+doRequest clientId correlationId h req = doRequest' correlationId h $ Request (correlationId, clientId, request req)
+  where request :: ReqResp req resp -> RequestMessage req resp
+        request (MetadataRR r) = MetadataRequest r
+        request (ProduceRR r) = ProduceRequest r
+        request (FetchRR r) = FetchRequest r
+        request (OffsetRR r) = OffsetRequest r
 
 class Serializable a where
   serialize :: a -> Put
@@ -72,14 +74,13 @@ newtype ApiVersion = ApiVersion Int16 deriving (Show, Eq, Deserializable, Serial
 newtype CorrelationId = CorrelationId Int32 deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum)
 newtype ClientId = ClientId KafkaString deriving (Show, Eq, Deserializable, Serializable, IsString)
 
-data RequestMessage = MetadataRequest MetadataRequestV0
-                    | ProduceRequest ProduceRequestV0
-                    | FetchRequest FetchRequestV0
-                    | OffsetRequest OffsetRequestV0
-                    | OffsetCommitRequest OffsetCommitRequestV0
-                    | OffsetFetchRequest OffsetFetchRequestV0
-                    | GroupCoordinatorRequest GroupCoordinatorRequestV0
-                    deriving (Show, Eq)
+data RequestMessage req resp = MetadataRequest (MetadataRequest req resp)
+                             | ProduceRequest (ProduceRequest req resp)
+                             | FetchRequest (FetchRequest req resp)
+                             | OffsetRequest (OffsetRequest req resp)
+                             | OffsetCommitRequest (OffsetCommitRequest req resp)
+                             | OffsetFetchRequest (OffsetFetchRequest req resp)
+                             | GroupCoordinatorRequest (GroupCoordinatorRequest req resp)
 
 data MetadataRequest req resp where
   MetadataRequestV0 :: MetadataRequestV0 -> MetadataRequest MetadataRequestV0 MetadataResponseV0
@@ -177,15 +178,6 @@ newtype Attributes = Attributes Int8 deriving (Show, Eq, Serializable, Deseriali
 newtype Key = Key { _keyBytes :: Maybe KafkaBytes } deriving (Show, Eq)
 newtype Value = Value { _valueBytes :: Maybe KafkaBytes } deriving (Show, Eq)
 
-data ResponseMessage = MetadataResponse MetadataResponseV0
-                     | ProduceResponse ProduceResponseV0
-                     | FetchResponse FetchResponseV0
-                     | OffsetResponse OffsetResponseV0
-                     | OffsetCommitResponse OffsetCommitResponseV0
-                     | OffsetFetchResponse OffsetFetchResponseV0
-                     | GroupCoordinatorResponse GroupCoordinatorResponseV0
-                     deriving (Show, Eq)
-
 data GroupCoordinatorRequest req resp where
   GroupCoordinatorRequestV0 :: GroupCoordinatorRequestV0 -> GroupCoordinatorRequest GroupCoordinatorRequestV0 GroupCoordinatorResponseV0
 
@@ -269,9 +261,9 @@ instance Deserializable KafkaError where
 
 instance Exception KafkaError
 
-newtype Request = Request (CorrelationId, ClientId, RequestMessage) deriving (Show, Eq)
+newtype Request req resp = Request (CorrelationId, ClientId, RequestMessage req resp)
 
-instance Serializable Request where
+instance (Serializable req) => Serializable (Request req resp) where
   serialize (Request (correlationId, clientId, r)) = do
     serialize (apiKey r)
     serialize (apiVersion r)
@@ -279,16 +271,16 @@ instance Serializable Request where
     serialize clientId
     serialize r
 
-requestBytes :: Request -> ByteString
+requestBytes :: Serializable req => Request req resp -> ByteString
 requestBytes x = runPut $ do
   putWord32be . fromIntegral $ B.length mr
   putByteString mr
     where mr = runPut $ serialize x
 
-apiVersion :: RequestMessage -> ApiVersion
+apiVersion :: RequestMessage req resp -> ApiVersion
 apiVersion _ = ApiVersion 0 -- everything is at version 0 right now
 
-apiKey :: RequestMessage -> ApiKey
+apiKey :: RequestMessage req resp -> ApiKey
 apiKey ProduceRequest{} = ApiKey 0
 apiKey FetchRequest{} = ApiKey 1
 apiKey OffsetRequest{} = ApiKey 2
@@ -297,14 +289,14 @@ apiKey OffsetCommitRequest{} = ApiKey 8
 apiKey OffsetFetchRequest{} = ApiKey 9
 apiKey GroupCoordinatorRequest{} = ApiKey 10
 
-instance Serializable RequestMessage where
-  serialize (ProduceRequest r) = serialize r
-  serialize (FetchRequest r) = serialize r
-  serialize (OffsetRequest r) = serialize r
-  serialize (MetadataRequest r) = serialize r
-  serialize (OffsetCommitRequest r) = serialize r
-  serialize (OffsetFetchRequest r) = serialize r
-  serialize (GroupCoordinatorRequest r) = serialize r
+instance Serializable req => Serializable (RequestMessage req resp) where
+  serialize (MetadataRequest r) = serialize . requestValue $ r
+  serialize (ProduceRequest r) = serialize . requestValue $ r
+  serialize (FetchRequest r) = serialize . requestValue $ r
+  serialize (OffsetRequest r) = serialize . requestValue $ r
+  serialize (OffsetCommitRequest r) = serialize . requestValue $ r
+  serialize (OffsetFetchRequest r) = serialize . requestValue $ r
+  serialize (GroupCoordinatorRequest r) = serialize . requestValue $ r
 
 instance Serializable Int64 where serialize = putWord64be . fromIntegral
 instance Serializable Int32 where serialize = putWord32be . fromIntegral
@@ -504,7 +496,7 @@ makeLenses ''Message
 makeLenses ''Key
 makeLenses ''Value
 
-makePrisms ''ResponseMessage
+makePrisms ''RequestMessage
 
 -- * Composed lenses
 
