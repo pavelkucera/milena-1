@@ -38,6 +38,8 @@ data KafkaState = KafkaState { -- | Name to use as a client ID.
                              , _stateRequestTimeout :: Timeout
                                -- | Minimum size of response bytes to block for.
                              , _stateWaitSize :: MinBytes
+                               -- | Maximum size of response bytes to block for.
+                             , _stateWaitMaxSize :: MaxBytes
                                -- | Maximum size of response bytes to retrieve.
                              , _stateBufferSize :: MaxBytes
                                -- | Maximum time in milliseconds to wait for response.
@@ -125,6 +127,10 @@ defaultRequestTimeout = 10000
 defaultMinBytes :: MinBytes
 defaultMinBytes = MinBytes 0
 
+-- | Default: @50 * 1024 * 1024@
+defaultFetchMaxBytes :: MaxBytes
+defaultFetchMaxBytes = 50 * 1024 * 1024
+
 -- | Default: @1024 * 1024@
 defaultMaxBytes :: MaxBytes
 defaultMaxBytes = 1024 * 1024
@@ -140,6 +146,7 @@ mkKafkaState cid addy =
                defaultRequiredAcks
                defaultRequestTimeout
                defaultMinBytes
+               defaultFetchMaxBytes
                defaultMaxBytes
                defaultMaxWaitTime
                defaultCorrelationId
