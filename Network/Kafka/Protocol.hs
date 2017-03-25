@@ -214,7 +214,8 @@ data MessageSetMember =
             
 newtype Offset = Offset Int64 deriving (Show, Eq, Serializable, Deserializable, Num, Integral, Ord, Real, Enum)
 
-data Message = Message { _messageFields :: (Crc, MagicByte, Attributes, Key, Value) }
+data Message = MessageV0 { _messageFieldsV0 :: (Crc, MagicByte, Attributes, Key, Value) }
+             | MessageV1 { _messageFieldsV1 :: (Crc, MagicByte, Attributes, Time, Key, Value) }
   deriving (Show, Eq)
 
 newtype Crc = Crc Int32 deriving (Show, Eq, Serializable, Deserializable, Num, Integral, Ord, Real, Enum)
@@ -422,8 +423,13 @@ instance Serializable MessageSetMember where
       where msize = fromIntegral $ B.length $ runPut $ serialize msg :: Int32
 
 instance Serializable Message where
-  serialize (Message (_, magic, attrs, k, v)) = do
+  serialize (MessageV0 (_, magic, attrs, k, v)) = do
     let m = runPut $ serialize magic >> serialize attrs >> serialize k >> serialize v
+    putWord32be (crc32 m)
+    putByteString m
+
+  serialize (MessageV1 (_, magic, attrs, t, k, v)) = do
+    let m = runPut $ serialize magic >> serialize attrs >> serialize t >> serialize k >> serialize v
     putWord32be (crc32 m)
     putByteString m
 
@@ -462,9 +468,19 @@ instance Deserializable MessageSetMember where
     return $ MessageSetMember o m
 
 instance Deserializable Message where
-deserialize = do
-  values <- deserialize :: Get (Crc, MagicByte, Attributes, Key, Value)
-  return . Message $ values
+  deserialize = do
+    (crc, magicByte, attributes) <- deserialize :: Get (Crc, MagicByte, Attributes)
+
+    case magicByte of
+      0 -> do
+        (key, value) <- deserialize :: Get (Key, Value)
+        return $ MessageV0 (crc, magicByte, attributes, key, value)
+
+      1 -> do
+        (time, key, value) <- deserialize :: Get (Time, Key, Value)
+        return $ MessageV1 (crc, magicByte, attributes, time, key, value)
+
+      _ -> fail "Unsupported magic byte value"
 
 instance Deserializable Leader where
   deserialize = do
@@ -662,6 +678,16 @@ messageSetByPartition p = keyed p . _4 . messageSetMembers . folded
 
 fetchResponseMessageMembers :: Fold FetchResponseV0 MessageSetMember
 fetchResponseMessageMembers = fetchResponseMessages . messageSetMembers . folded
+
+messageFields :: Lens' Message (Crc, MagicByte, Attributes, Key, Value)
+messageFields = lens fields setter
+  where fields :: Message -> (Crc, MagicByte, Attributes, Key, Value)
+        fields m@MessageV0{} = _messageFieldsV0 m
+        fields (MessageV1 (crc, magicByte, attributes, _, key, value)) = (crc, magicByte, attributes, key, value)
+
+        setter :: Message -> (Crc, MagicByte, Attributes, Key, Value) -> Message
+        setter MessageV0{} v = MessageV0 v
+        setter (MessageV1 (_, _, _, time, _, _)) (crc, magicByte, attributes, key, value) = MessageV1 (crc, magicByte, attributes, time, key, value)
 
 messageKey :: Lens' Message Key
 messageKey = messageFields . _4
