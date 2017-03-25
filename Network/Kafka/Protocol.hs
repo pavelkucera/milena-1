@@ -135,6 +135,10 @@ newtype FetchResponseV2 =
   FetchRespV2 { _fetchResponseFieldsV2 :: (ThrottleTimeMs, [(TopicName, [(Partition, KafkaError, Offset, MessageSet)])]) }
   deriving (Show, Eq, Serializable, Deserializable)
 
+newtype FetchResponseV3 =
+  FetchRespV3 { _fetchResponseFieldsV3 :: (ThrottleTimeMs, [(TopicName, [(Partition, KafkaError, Offset, MessageSet)])]) }
+  deriving (Show, Eq, Serializable, Deserializable)
+
 newtype MetadataResponseV0 = MetadataRespV0 { _metadataResponseFieldsV0 :: ([Broker], [TopicMetadata]) } deriving (Show, Eq, Deserializable)
 newtype Broker = Broker { _brokerFields :: (NodeId, Host, Port) } deriving (Show, Eq, Ord, Deserializable)
 newtype NodeId = NodeId { _nodeId :: Int32 } deriving (Show, Eq, Deserializable, Num, Integral, Ord, Real, Enum)
@@ -169,6 +173,7 @@ data FetchRequest req resp where
   FetchRequestV0 :: FetchRequestV0 -> FetchRequest FetchRequestV0 FetchResponseV0
   FetchRequestV1 :: FetchRequestV1 -> FetchRequest FetchRequestV1 FetchResponseV1
   FetchRequestV2 :: FetchRequestV2 -> FetchRequest FetchRequestV2 FetchResponseV2
+  FetchRequestV3 :: FetchRequestV3 -> FetchRequest FetchRequestV3 FetchResponseV3
 
 newtype FetchRequestV0 =
   FetchReqV0 (ReplicaId, MaxWaitTime, MinBytes,
@@ -182,6 +187,11 @@ newtype FetchRequestV1 =
 
 newtype FetchRequestV2 =
   FetchReqV2 (ReplicaId, MaxWaitTime, MinBytes,
+              [(TopicName, [(Partition, Offset, MaxBytes)])])
+    deriving (Show, Eq, Deserializable, Serializable)
+
+newtype FetchRequestV3 =
+  FetchReqV3 (ReplicaId, MaxWaitTime, MinBytes, MaxBytes,
               [(TopicName, [(Partition, Offset, MaxBytes)])])
     deriving (Show, Eq, Deserializable, Serializable)
 
@@ -361,6 +371,7 @@ apiVersion :: RequestMessage req resp -> ApiVersion
 apiVersion (OffsetFetchRequest OffsetFetchRequestV1{}) = ApiVersion 1
 apiVersion (FetchRequest FetchRequestV1{}) = ApiVersion 1
 apiVersion (FetchRequest FetchRequestV2{}) = ApiVersion 2
+apiVersion (FetchRequest FetchRequestV3{}) = ApiVersion 3
 apiVersion (OffsetRequest OffsetRequestV1{}) = ApiVersion 1
 apiVersion (ProduceRequest ProduceRequestV1{}) = ApiVersion 1
 apiVersion (ProduceRequest ProduceRequestV2{}) = ApiVersion 2
@@ -580,6 +591,7 @@ instance RequestValue (FetchRequest req resp) where
   requestValue (FetchRequestV0 r) = r
   requestValue (FetchRequestV1 r) = r
   requestValue (FetchRequestV2 r) = r
+  requestValue (FetchRequestV3 r) = r
 
 instance RequestValue (OffsetRequest req resp) where
   type ReqValue (OffsetRequest req resp) = req
@@ -620,6 +632,7 @@ makeLenses ''PartitionOffsetsV1
 makeLenses ''FetchResponseV0
 makeLenses ''FetchResponseV1
 makeLenses ''FetchResponseV2
+makeLenses ''FetchResponseV3
 
 makeLenses ''MetadataResponseV0
 makeLenses ''Broker
