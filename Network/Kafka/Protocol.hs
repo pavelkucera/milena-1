@@ -425,6 +425,8 @@ instance (Serializable a, Serializable b, Serializable c, Serializable d) => Ser
   serialize (w, x, y, z) = serialize w >> serialize x >> serialize y >> serialize z
 instance (Serializable a, Serializable b, Serializable c, Serializable d, Serializable e) => Serializable ((,,,,) a b c d e) where
   serialize (v, w, x, y, z) = serialize v >> serialize w >> serialize x >> serialize y >> serialize z
+instance (Serializable a, Serializable b, Serializable c, Serializable d, Serializable e, Serializable f) => Serializable ((,,,,,) a b c d e f) where
+  serialize (u, v, w, x, y, z) = serialize u >> serialize v >> serialize w >> serialize x >> serialize y >> serialize z
 
 instance Deserializable MessageSet where
   deserialize = do
@@ -526,6 +528,11 @@ instance (Deserializable a, Deserializable b, Deserializable c, Deserializable d
   deserialize = liftM4 (,,,) deserialize deserialize deserialize deserialize
 instance (Deserializable a, Deserializable b, Deserializable c, Deserializable d, Deserializable e) => Deserializable ((,,,,) a b c d e) where
   deserialize = liftM5 (,,,,) deserialize deserialize deserialize deserialize deserialize
+instance (Deserializable a, Deserializable b, Deserializable c, Deserializable d, Deserializable e, Deserializable f) => Deserializable ((,,,,,) a b c d e f) where
+  deserialize = liftM6 (,,,,,) deserialize deserialize deserialize deserialize deserialize deserialize
+    where
+      liftM6 f m1 m2 m3 m4 m5 m6 = do { x1 <- m1; x2 <- m2; x3 <- m3; x4 <- m4; x5 <- m5; x6 <- m6; return (f x1 x2 x3 x4 x5 x6) }
+
 
 instance Deserializable Int64 where deserialize = fmap fromIntegral getWord64be
 instance Deserializable Int32 where deserialize = fmap fromIntegral getWord32be
