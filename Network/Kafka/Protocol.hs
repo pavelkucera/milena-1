@@ -279,7 +279,7 @@ newtype OffsetFetchRequestV0 = OffsetFetchReqV0 (ConsumerGroup, [(TopicName, [Pa
 newtype OffsetFetchRequestV1 = OffsetFetchReqV1 (ConsumerGroup, [(TopicName, [Partition])]) deriving (Show, Eq, Serializable)
 
 newtype ConsumerGroup = ConsumerGroup KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
-newtype Metadata = Metadata KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
+newtype Metadata = Metadata KafkaNullableString deriving (Show, Eq, Serializable, Deserializable, IsString)
 
 errorKafka :: KafkaError -> Int16
 errorKafka NoError                             = 0
