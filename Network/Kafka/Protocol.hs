@@ -280,6 +280,17 @@ errorKafka OffsetMetadataTooLargeCode          = 12
 errorKafka OffsetsLoadInProgressCode           = 14
 errorKafka ConsumerCoordinatorNotAvailableCode = 15
 errorKafka NotCoordinatorForConsumerCode       = 16
+errorKafka InvalidTopicException               = 17
+errorKafka RecordListTooLarge                  = 18
+errorKafka NotEnoughReplicas                   = 19
+errorKafka NotEnoughReplicasAfterAppend        = 20
+errorKafka InvalidRequiredAcks                 = 21
+errorKafka IllegalGeneration                   = 22
+errorKafka InconsistentGroupProtocol           = 23
+errorKafka InvalidGroupId                      = 24
+errorKafka UnknownMemberId                     = 25
+errorKafka InvalidSessionTimeout               = 26
+errorKafka RebalanceInProgress                 = 27
 
 data KafkaError = NoError -- ^ @0@ No error--it worked!
                 | Unknown -- ^ @-1@ An unexpected server error
@@ -298,6 +309,17 @@ data KafkaError = NoError -- ^ @0@ No error--it worked!
                 | OffsetsLoadInProgressCode -- ^ @14@ The broker returns this error code for an offset fetch request if it is still loading offsets (after a leader change for that offsets topic partition).
                 | ConsumerCoordinatorNotAvailableCode -- ^ @15@ The broker returns this error code for consumer metadata requests or offset commit requests if the offsets topic has not yet been created.
                 | NotCoordinatorForConsumerCode -- ^ @16@ The broker returns this error code if it receives an offset fetch or commit request for a consumer group that it is not a coordinator for.
+                | InvalidTopicException
+                | RecordListTooLarge
+                | NotEnoughReplicas
+                | NotEnoughReplicasAfterAppend
+                | InvalidRequiredAcks
+                | IllegalGeneration
+                | InconsistentGroupProtocol
+                | InvalidGroupId
+                | UnknownMemberId
+                | InvalidSessionTimeout
+                | RebalanceInProgress
                 deriving (Eq, Show)
 
 instance IsString KafkaNullableString where
@@ -327,6 +349,17 @@ instance Deserializable KafkaError where
       14   -> return OffsetsLoadInProgressCode
       15   -> return ConsumerCoordinatorNotAvailableCode
       16   -> return NotCoordinatorForConsumerCode
+      17   -> return InvalidTopicException
+      18   -> return RecordListTooLarge
+      19   -> return NotEnoughReplicas
+      20   -> return NotEnoughReplicasAfterAppend
+      21   -> return InvalidRequiredAcks
+      22   -> return IllegalGeneration
+      23   -> return InconsistentGroupProtocol
+      24   -> return InvalidGroupId
+      25   -> return UnknownMemberId
+      26   -> return InvalidSessionTimeout
+      27   -> return RebalanceInProgress
       _    -> fail $ "invalid error code: " ++ show x
 
 instance Exception KafkaError
