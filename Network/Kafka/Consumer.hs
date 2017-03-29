@@ -28,7 +28,7 @@ fetchRequest o p topic = do
 
 -- | Execute a fetch request and get the raw fetch response.
 fetch' :: Kafka m => Handle -> FetchRequest FetchRequestV3 FetchResponseV3 -> m FetchResponseV3
-fetch' h request = makeRequest h $ FetchRR request
+fetch' h request = makeRequest h $ FetchRequest request
 
 fetch :: Kafka m => Offset -> Partition -> TopicName -> m FetchResponseV3
 fetch o p topic = do

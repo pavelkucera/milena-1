@@ -28,12 +28,6 @@ import Prelude hiding ((.), id)
 import qualified Data.ByteString.Char8 as B
 import qualified Network
 
-data ReqResp req resp where
-  MetadataRR :: MetadataRequest req resp -> ReqResp req resp
-  ProduceRR :: ProduceRequest req resp -> ReqResp req resp
-  FetchRR :: FetchRequest req resp -> ReqResp req resp
-  OffsetRR :: OffsetRequest req resp -> ReqResp req resp
-
 doRequest' :: (Serializable req, Deserializable resp, MonadIO m) => CorrelationId -> Handle -> Request req resp -> m (Either String resp)
 doRequest' correlationId h r = do
   rawLength <- liftIO $ do
@@ -49,13 +43,8 @@ doRequest' correlationId h r = do
         unless (correlationId == correlationId') $ fail ("Expected " ++ show correlationId ++ " but got " ++ show correlationId')
         isolate (dataLength - 4) deserialize
 
-doRequest :: (MonadIO m, Serializable req, Deserializable resp) => ClientId -> CorrelationId -> Handle -> ReqResp req resp -> m (Either String resp)
-doRequest clientId correlationId h req = doRequest' correlationId h $ Request (correlationId, clientId, request req)
-  where request :: ReqResp req resp -> RequestMessage req resp
-        request (MetadataRR r) = MetadataRequest r
-        request (ProduceRR r) = ProduceRequest r
-        request (FetchRR r) = FetchRequest r
-        request (OffsetRR r) = OffsetRequest r
+doRequest :: (MonadIO m, Serializable req, Deserializable resp) => ClientId -> CorrelationId -> Handle -> RequestMessage req resp -> m (Either String resp)
+doRequest clientId correlationId h req = doRequest' correlationId h $ Request (correlationId, clientId, req)
 
 class Serializable a where
   serialize :: a -> Put
