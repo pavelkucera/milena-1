@@ -23,8 +23,8 @@ import Network.Kafka.Protocol
 -- * Producing
 
 -- | Execute a produce request and get the raw produce response.
-produce :: Kafka m => Handle -> ProduceRequest ProduceRequestV2 ProduceResponseV2 -> m ProduceResponseV2
-produce handle request = makeRequest handle request
+produce :: (Serializable req, Deserializable resp, Kafka m) => Handle -> ProduceRequest req resp -> m resp
+produce = makeRequest
 
 -- | Construct a produce request with explicit arguments.
 produceRequest :: RequiredAcks -> Timeout -> [(TopicAndPartition, MessageSet)] -> ProduceRequest ProduceRequestV2 ProduceResponseV2

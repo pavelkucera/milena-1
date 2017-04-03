@@ -27,8 +27,8 @@ fetchRequest o p topic = do
   return . FetchRequestV3 $ FetchReqV3 (ordinaryConsumerId, wt, ws, wm, [(topic, [(p, o, bs)])])
 
 -- | Execute a fetch request and get the raw fetch response.
-fetch' :: Kafka m => Handle -> FetchRequest FetchRequestV3 FetchResponseV3 -> m FetchResponseV3
-fetch' h request = makeRequest h request
+fetch' :: (Serializable req, Deserializable resp, Kafka m)  => Handle -> FetchRequest req resp -> m resp
+fetch' = makeRequest
 
 fetch :: Kafka m => Offset -> Partition -> TopicName -> m FetchResponseV3
 fetch o p topic = do
