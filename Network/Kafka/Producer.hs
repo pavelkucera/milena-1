@@ -24,7 +24,7 @@ import Network.Kafka.Protocol
 
 -- | Execute a produce request and get the raw produce response.
 produce :: Kafka m => Handle -> ProduceRequest ProduceRequestV2 ProduceResponseV2 -> m ProduceResponseV2
-produce handle request = makeRequest handle $ ProduceRequest request
+produce handle request = makeRequest handle request
 
 -- | Construct a produce request with explicit arguments.
 produceRequest :: RequiredAcks -> Timeout -> [(TopicAndPartition, MessageSet)] -> ProduceRequest ProduceRequestV2 ProduceResponseV2

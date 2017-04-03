@@ -2,7 +2,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Rank2Types #-}
 
 module Network.Kafka.Protocol
@@ -28,7 +27,7 @@ import Prelude hiding ((.), id)
 import qualified Data.ByteString.Char8 as B
 import qualified Network
 
-doRequest' :: (Serializable req, Deserializable resp, MonadIO m) => CorrelationId -> Handle -> Request req resp -> m (Either String resp)
+doRequest' :: (RequestMessage req, Deserializable resp, MonadIO m) => CorrelationId -> Handle -> Request req -> m (Either String resp)
 doRequest' correlationId h r = do
   rawLength <- liftIO $ do
     B.hPut h $ requestBytes r
@@ -43,7 +42,7 @@ doRequest' correlationId h r = do
         unless (correlationId == correlationId') $ fail ("Expected " ++ show correlationId ++ " but got " ++ show correlationId')
         isolate (dataLength - 4) deserialize
 
-doRequest :: (MonadIO m, Serializable req, Deserializable resp) => ClientId -> CorrelationId -> Handle -> RequestMessage req resp -> m (Either String resp)
+doRequest :: (RequestMessage req, Deserializable resp, MonadIO m) => ClientId -> CorrelationId -> Handle -> req -> m (Either String resp)
 doRequest clientId correlationId h req = doRequest' correlationId h $ Request (correlationId, clientId, req)
 
 class Serializable a where
@@ -52,9 +51,10 @@ class Serializable a where
 class Deserializable a where
   deserialize :: Get a
 
-class RequestValue r where
-  type ReqValue r
-  requestValue :: r -> ReqValue r
+class RequestMessage r where
+  apiKeyValue :: r -> Int16
+  apiVersionValue :: r -> Int16
+  serializeRequest :: r -> Put
 
 newtype GroupCoordinatorResponseV0 = GroupCoordinatorRespV0 (KafkaError, Broker) deriving (Show, Eq, Deserializable)
 
@@ -62,14 +62,6 @@ newtype ApiKey = ApiKey Int16 deriving (Show, Eq, Deserializable, Serializable, 
 newtype ApiVersion = ApiVersion Int16 deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum)
 newtype CorrelationId = CorrelationId Int32 deriving (Show, Eq, Deserializable, Serializable, Num, Integral, Ord, Real, Enum)
 newtype ClientId = ClientId KafkaString deriving (Show, Eq, Deserializable, Serializable, IsString)
-
-data RequestMessage req resp = MetadataRequest (MetadataRequest req resp)
-                             | ProduceRequest (ProduceRequest req resp)
-                             | FetchRequest (FetchRequest req resp)
-                             | OffsetRequest (OffsetRequest req resp)
-                             | OffsetCommitRequest (OffsetCommitRequest req resp)
-                             | OffsetFetchRequest (OffsetFetchRequest req resp)
-                             | GroupCoordinatorRequest (GroupCoordinatorRequest req resp)
 
 data MetadataRequest req resp where
   MetadataRequestV0 :: MetadataRequestV0 -> MetadataRequest MetadataRequestV0 MetadataResponseV0
@@ -340,51 +332,27 @@ instance Deserializable KafkaError where
 
 instance Exception KafkaError
 
-newtype Request req resp = Request (CorrelationId, ClientId, RequestMessage req resp)
+newtype Request req = Request (CorrelationId, ClientId, req)
 
-instance (Serializable req) => Serializable (Request req resp) where
+instance RequestMessage req => Serializable (Request req) where
   serialize (Request (correlationId, clientId, r)) = do
     serialize (apiKey r)
     serialize (apiVersion r)
     serialize correlationId
     serialize clientId
-    serialize r
+    serializeRequest r
 
-requestBytes :: Serializable req => Request req resp -> ByteString
+requestBytes :: RequestMessage req => Request req -> ByteString
 requestBytes x = runPut $ do
   putWord32be . fromIntegral $ B.length mr
   putByteString mr
     where mr = runPut $ serialize x
 
-apiVersion :: RequestMessage req resp -> ApiVersion
-apiVersion (OffsetFetchRequest OffsetFetchRequestV1{}) = ApiVersion 1
-apiVersion (FetchRequest FetchRequestV1{}) = ApiVersion 1
-apiVersion (FetchRequest FetchRequestV2{}) = ApiVersion 2
-apiVersion (FetchRequest FetchRequestV3{}) = ApiVersion 3
-apiVersion (OffsetRequest OffsetRequestV1{}) = ApiVersion 1
-apiVersion (ProduceRequest ProduceRequestV1{}) = ApiVersion 1
-apiVersion (ProduceRequest ProduceRequestV2{}) = ApiVersion 2
-apiVersion (OffsetCommitRequest OffsetCommitRequestV1{}) = ApiVersion 1
-apiVersion (OffsetCommitRequest OffsetCommitRequestV2{}) = ApiVersion 2
-apiVersion _ = ApiVersion 0
+apiVersion :: RequestMessage req => req -> ApiVersion
+apiVersion = ApiVersion . apiVersionValue
 
-apiKey :: RequestMessage req resp -> ApiKey
-apiKey ProduceRequest{} = ApiKey 0
-apiKey FetchRequest{} = ApiKey 1
-apiKey OffsetRequest{} = ApiKey 2
-apiKey MetadataRequest{} = ApiKey 3
-apiKey OffsetCommitRequest{} = ApiKey 8
-apiKey OffsetFetchRequest{} = ApiKey 9
-apiKey GroupCoordinatorRequest{} = ApiKey 10
-
-instance Serializable req => Serializable (RequestMessage req resp) where
-  serialize (MetadataRequest r) = serialize . requestValue $ r
-  serialize (ProduceRequest r) = serialize . requestValue $ r
-  serialize (FetchRequest r) = serialize . requestValue $ r
-  serialize (OffsetRequest r) = serialize . requestValue $ r
-  serialize (OffsetCommitRequest r) = serialize . requestValue $ r
-  serialize (OffsetFetchRequest r) = serialize . requestValue $ r
-  serialize (GroupCoordinatorRequest r) = serialize . requestValue $ r
+apiKey :: RequestMessage req => req -> ApiKey
+apiKey = ApiKey . apiKeyValue
 
 instance Serializable Int64 where serialize = putWord64be . fromIntegral
 instance Serializable Int32 where serialize = putWord32be . fromIntegral
@@ -565,42 +533,72 @@ instance Deserializable Int32 where deserialize = fmap fromIntegral getWord32be
 instance Deserializable Int16 where deserialize = fmap fromIntegral getWord16be
 instance Deserializable Int8  where deserialize = fmap fromIntegral getWord8
 
-instance RequestValue (MetadataRequest req resp) where
-  type ReqValue (MetadataRequest req resp) = req
-  requestValue (MetadataRequestV0 r) = r
+instance Serializable req => RequestMessage (MetadataRequest req resp) where
+  apiKeyValue _ = 3
 
-instance RequestValue (ProduceRequest req resp) where
-  type ReqValue (ProduceRequest req resp) = req
-  requestValue (ProduceRequestV0 r) = r
-  requestValue (ProduceRequestV1 r) = r
-  requestValue (ProduceRequestV2 r) = r
+  serializeRequest (MetadataRequestV0 r) = serialize r
 
-instance RequestValue (FetchRequest req resp) where
-  type ReqValue (FetchRequest req resp) = req
-  requestValue (FetchRequestV0 r) = r
-  requestValue (FetchRequestV1 r) = r
-  requestValue (FetchRequestV2 r) = r
-  requestValue (FetchRequestV3 r) = r
+  apiVersionValue MetadataRequestV0{} = 0
 
-instance RequestValue (OffsetRequest req resp) where
-  type ReqValue (OffsetRequest req resp) = req
-  requestValue (OffsetRequestV0 r) = r
-  requestValue (OffsetRequestV1 r) = r
+instance Serializable req => RequestMessage (ProduceRequest req resp) where
+  apiKeyValue _ = 0
 
-instance RequestValue (OffsetCommitRequest req resp) where
-  type ReqValue (OffsetCommitRequest req resp) = req
-  requestValue (OffsetCommitRequestV0 r) = r
-  requestValue (OffsetCommitRequestV1 r) = r
-  requestValue (OffsetCommitRequestV2 r) = r
+  serializeRequest (ProduceRequestV0 r) = serialize r
+  serializeRequest (ProduceRequestV1 r) = serialize r
+  serializeRequest (ProduceRequestV2 r) = serialize r
 
-instance RequestValue (OffsetFetchRequest req resp) where
-  type ReqValue (OffsetFetchRequest req resp) = req
-  requestValue (OffsetFetchRequestV0 r) = r
-  requestValue (OffsetFetchRequestV1 r) = r
+  apiVersionValue ProduceRequestV0{} = 0
+  apiVersionValue ProduceRequestV1{} = 1
+  apiVersionValue ProduceRequestV2{} = 2
 
-instance RequestValue (GroupCoordinatorRequest req resp) where
-  type ReqValue (GroupCoordinatorRequest req resp) = req
-  requestValue (GroupCoordinatorRequestV0 r) = r
+instance Serializable req => RequestMessage (FetchRequest req resp) where
+  apiKeyValue _ = 1
+
+  serializeRequest (FetchRequestV0 r) = serialize r
+  serializeRequest (FetchRequestV1 r) = serialize r
+  serializeRequest (FetchRequestV2 r) = serialize r
+  serializeRequest (FetchRequestV3 r) = serialize r
+
+  apiVersionValue FetchRequestV0{} = 0
+  apiVersionValue FetchRequestV1{} = 1
+  apiVersionValue FetchRequestV2{} = 2
+  apiVersionValue FetchRequestV3{} = 3
+
+instance Serializable req => RequestMessage (OffsetRequest req resp) where
+  apiKeyValue _ = 2
+
+  serializeRequest (OffsetRequestV0 r) = serialize r
+  serializeRequest (OffsetRequestV1 r) = serialize r
+
+  apiVersionValue OffsetRequestV0{} = 0
+  apiVersionValue OffsetRequestV1{} = 1
+
+instance Serializable req => RequestMessage (OffsetCommitRequest req resp) where
+  apiKeyValue _ = 8
+
+  serializeRequest (OffsetCommitRequestV0 r) = serialize r
+  serializeRequest (OffsetCommitRequestV1 r) = serialize r
+  serializeRequest (OffsetCommitRequestV2 r) = serialize r
+
+  apiVersionValue OffsetCommitRequestV0{} = 0
+  apiVersionValue OffsetCommitRequestV1{} = 1
+  apiVersionValue OffsetCommitRequestV2{} = 2
+
+instance Serializable req => RequestMessage (OffsetFetchRequest req resp) where
+  apiKeyValue _ = 2
+
+  serializeRequest (OffsetFetchRequestV0 r) = serialize r
+  serializeRequest (OffsetFetchRequestV1 r) = serialize r
+
+  apiVersionValue OffsetFetchRequestV0{} = 0
+  apiVersionValue OffsetFetchRequestV1{} = 1
+
+instance Serializable req => RequestMessage (GroupCoordinatorRequest req resp) where
+  apiKeyValue _ = 10
+
+  serializeRequest (GroupCoordinatorRequestV0 r) = serialize r
+
+  apiVersionValue GroupCoordinatorRequestV0{} = 0
 
 -- * Generated lenses
 
@@ -644,8 +642,6 @@ makeLenses ''Message
 
 makeLenses ''Key
 makeLenses ''Value
-
-makePrisms ''RequestMessage
 
 -- * Composed lenses
 

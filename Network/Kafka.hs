@@ -170,7 +170,7 @@ tryKafka :: Kafka m => m a -> m a
 tryKafka = (`catch` \e -> throwError $ KafkaIOException (e :: IOException))
 
 -- | Make a request, incrementing the `_stateCorrelationId`.
-makeRequest :: (Serializable req, Deserializable resp, Kafka m) => Handle -> RequestMessage req resp -> m resp
+makeRequest :: (RequestMessage req, Deserializable resp, Kafka m) => Handle -> req -> m resp
 makeRequest h reqresp = do
   (clientId, correlationId) <- makeIds
   eitherResp <- tryKafka $ doRequest clientId correlationId h reqresp
@@ -191,7 +191,7 @@ metadata request = withAnyHandle $ flip metadata' request
 
 -- | Send a metadata request.
 metadata' :: Kafka m => Handle -> MetadataRequestV0 -> m MetadataResponseV0
-metadata' h request = makeRequest h $ MetadataRequest (MetadataRequestV0 request)
+metadata' h request = makeRequest h $ MetadataRequestV0 request
 
 getTopicPartitionLeader :: Kafka m => TopicName -> Partition -> m Broker
 getTopicPartitionLeader t p = do
@@ -326,7 +326,7 @@ getLastOffset m p t = do
 -- | Get the first found offset.
 getLastOffset' :: Kafka m => Handle -> KafkaTime -> Partition -> TopicName -> m Offset
 getLastOffset' h m p t = do
-  let offsetRR = OffsetRequest . OffsetRequestV1 $ offsetRequest [(TopicAndPartition t p, PartitionOffsetRequestInfo m 1)]
+  let offsetRR = OffsetRequestV1 $ offsetRequest [(TopicAndPartition t p, PartitionOffsetRequestInfo m 1)]
   offsetResponse <- makeRequest h offsetRR
   let maybeResp = firstOf (offsetResponseOffset p) offsetResponse
   maybe (throwError KafkaNoOffset) return maybeResp
