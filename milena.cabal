@@ -76,4 +76,5 @@ test-suite test
   other-modules:
     KafkaTest,
     Tests.Consume,
+    Tests.Group,
     Tests.Produce

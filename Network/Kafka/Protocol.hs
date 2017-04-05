@@ -249,7 +249,7 @@ newtype OffsetCommitRequestV2 = OffsetCommitReqV2 (
   ) deriving (Show, Eq, Serializable)
 
 newtype GroupGenerationId = GroupGenerationId { _groupGenerationId :: Int32 } deriving (Show, Eq, Serializable, Deserializable)
-newtype MemberId = MemberId { _memberId :: KafkaString } deriving (Show, Eq, Serializable, Deserializable)
+newtype MemberId = MemberId { _memberId :: KafkaString } deriving (Show, Eq, Serializable, Deserializable, IsString)
 type RetentionTime = Time
 
 data OffsetFetchRequest req resp where
@@ -269,9 +269,9 @@ data JoinGroupRequest req resp where
 newtype JoinGroupRequestV0 = JoinGroupReqV0 (ConsumerGroup, SessionTimeout, MemberId, ProtocolType, [(ProtocolName, ProtocolMetadata)]) deriving (Show, Eq, Serializable)
 newtype JoinGroupRequestV1 = JoinGroupReqV1 (ConsumerGroup, SessionTimeout, RebalanceTimeout, MemberId, ProtocolType, [(ProtocolName, ProtocolMetadata)]) deriving (Show, Eq, Serializable)
 
-newtype JoinGroupResponseV0 = JoinGroupResponseV0 (KafkaError, GroupGenerationId, ProtocolName, GroupLeader, MemberId, [(MemberId, MemberMetadata)])
+newtype JoinGroupResponseV0 = JoinGroupResponseV0 { _joinGroupResponseFieldsV0 :: (KafkaError, GroupGenerationId, ProtocolName, GroupLeader, MemberId, [(MemberId, MemberMetadata)]) }
   deriving (Show, Eq, Deserializable)
-newtype JoinGroupResponseV1 = JoinGroupResponseV1 (KafkaError, GroupGenerationId, ProtocolName, GroupLeader, MemberId, [(MemberId, ProtocolMetadata)])
+newtype JoinGroupResponseV1 = JoinGroupResponseV1 { _joinGroupResponseFieldsV1 :: (KafkaError, GroupGenerationId, ProtocolName, GroupLeader, MemberId, [(MemberId, ProtocolMetadata)]) }
   deriving (Show, Eq, Deserializable)
 
 type SessionTimeout = Timeout;

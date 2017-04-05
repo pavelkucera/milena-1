@@ -44,6 +44,8 @@ data KafkaState = KafkaState { -- | Name to use as a client ID.
                              , _stateBufferSize :: MaxBytes
                                -- | Maximum time in milliseconds to wait for response.
                              , _stateWaitTime :: MaxWaitTime
+                               -- | Time in milliseconds after which the group coordinator considers a consumer dead
+                             , _stateGroupSessionTimeout :: SessionTimeout
                                -- | An incrementing counter of requests.
                              , _stateCorrelationId :: CorrelationId
                                -- | Broker cache
@@ -139,6 +141,10 @@ defaultMaxBytes = 1024 * 1024
 defaultMaxWaitTime :: MaxWaitTime
 defaultMaxWaitTime = 0
 
+-- Default: @3 * 10 * 1000@
+defaultGroupSessionTimeout :: SessionTimeout
+defaultGroupSessionTimeout = 3 * 10 * 1000
+
 -- | Create a consumer using default values.
 mkKafkaState :: KafkaClientId -> KafkaAddress -> KafkaState
 mkKafkaState cid addy =
@@ -149,6 +155,7 @@ mkKafkaState cid addy =
                defaultFetchMaxBytes
                defaultMaxBytes
                defaultMaxWaitTime
+               defaultGroupSessionTimeout
                defaultCorrelationId
                M.empty
                M.empty

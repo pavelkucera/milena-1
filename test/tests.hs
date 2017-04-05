@@ -18,6 +18,7 @@ import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Char8 as B
 import KafkaTest
 import qualified Tests.Consume (tests)
+import qualified Tests.Group (tests)
 import qualified Tests.Produce (tests)
 
 import Prelude
@@ -69,6 +70,8 @@ specs = do
           _ -> fail "Unexpected produce response"
 
       result `shouldBe` Right (tamPayload <$> messages)
+
+  describe "can manage groups" Tests.Group.tests
 
   describe "withAddressHandle" $ do
     it "turns 'IOException's into 'KafkaClientError's" $ do

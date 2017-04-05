@@ -39,3 +39,25 @@ fetch o p topic = do
 fetchMessages :: FetchResponseV3 -> [TopicAndMessage]
 fetchMessages fr = (fr ^.. fetchResponseFieldsV3 . _2 . folded) >>= tam
     where tam a = TopicAndMessage (a ^. _1) <$> a ^.. _2 . folded . _4 . messageSetMembers . folded . setMessage
+
+-- | Construct a join group request from the values in the state
+joinGroupRequest :: Kafka m => ConsumerGroup -> MemberId -> ProtocolType -> [(ProtocolName, ProtocolMetadata)] -> m (JoinGroupRequest JoinGroupRequestV0 JoinGroupResponseV0)
+joinGroupRequest cg mi pt gp = do
+  st <- use stateGroupSessionTimeout
+  return . JoinGroupRequestV0 $ JoinGroupReqV0  (cg, st, mi, pt, gp)
+
+-- Send the given join group request
+joinGroup :: (Serializable req, Deserializable resp, Kafka m) => Handle -> JoinGroupRequest req resp -> m resp
+joinGroup = makeRequest
+
+-- Send the given heartbeat request
+sendHeartbeat :: (Serializable req, Deserializable resp, Kafka m) => Handle -> HeartbeatRequest req resp -> m resp
+sendHeartbeat = makeRequest
+
+-- Send the given sync group request
+syncGroup :: (Serializable req, Deserializable resp, Kafka m) => Handle -> SyncGroupRequest req resp -> m resp
+syncGroup = makeRequest
+
+-- Send the given sync group request
+leaveGroup :: (Serializable req, Deserializable resp, Kafka m) => Handle -> LeaveGroupRequest req resp -> m resp
+leaveGroup = makeRequest
