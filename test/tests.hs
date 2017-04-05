@@ -3,7 +3,7 @@
 module Main where
 
 import Data.Functor
-import Data.Either (isRight, isLeft)
+import Data.Either (isLeft)
 import qualified Data.List.NonEmpty as NE
 import Control.Lens
 import Control.Monad.Except (catchError, throwError)
@@ -17,6 +17,8 @@ import Test.Tasty.Hspec
 import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Char8 as B
 import KafkaTest
+import qualified Tests.Consume (tests)
+import qualified Tests.Produce (tests)
 
 import Prelude
 
@@ -27,24 +29,9 @@ specs :: Spec
 specs = do
 
   describe "can talk to local Kafka server" $ do
-    prop "can produce messages" $ \ms -> do
-      time <- liftIO currentTime
-      result <- run . produceMessages $ byteMessages time ms
-      result `shouldSatisfy` isRight
+    describe "can produce messages" Tests.Produce.tests
 
-    prop "can produce multiple messages" $ \(ms, ms') -> do
-      result <- run $ do
-        time <- liftIO currentTime
-        r1 <- produceMessages $ byteMessages time ms
-        r2 <- produceMessages $ byteMessages time ms'
-        return $ r1 ++ r2
-      result `shouldSatisfy` isRight
-
-    prop "can fetch messages" $ do
-      result <- run $ do
-        offset <- getLastOffset EarliestTime 0 topic
-        withAnyHandle (\handle -> fetch' handle =<< fetchRequest offset 0 topic)
-      result `shouldSatisfy` isRight
+    describe "can fetch messages" Tests.Consume.tests
 
     prop "can roundtrip messages" $ \ms key -> do
       time <- liftIO currentTime

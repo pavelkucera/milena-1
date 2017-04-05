@@ -68,11 +68,12 @@ test-suite test
                        semigroups,
                        tasty,
                        tasty-hspec,
-                       tasty-quickcheck
                        tasty-quickcheck,
                        transformers
   hs-source-dirs:      test
   main-is:             tests.hs
   type:                exitcode-stdio-1.0
   other-modules:
-    KafkaTest
+    KafkaTest,
+    Tests.Consume,
+    Tests.Produce

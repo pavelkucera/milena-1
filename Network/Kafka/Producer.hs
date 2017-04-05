@@ -22,21 +22,32 @@ import Network.Kafka.Protocol
 
 -- * Producing
 
+data ProduceRequestFactory req resp = ProduceRequestFactory { produceRequestFactory :: [(TopicAndPartition, MessageSet)] -> ProduceRequest req resp }
+
 -- | Execute a produce request and get the raw produce response.
 produce :: (Serializable req, Deserializable resp, Kafka m) => Handle -> ProduceRequest req resp -> m resp
 produce = makeRequest
 
 -- | Construct a produce request with explicit arguments.
 produceRequest :: RequiredAcks -> Timeout -> [(TopicAndPartition, MessageSet)] -> ProduceRequest ProduceRequestV2 ProduceResponseV2
-produceRequest ra ti ts =
-    ProduceRequestV2 $ ProduceReqV2 (ra, ti, M.toList . M.unionsWith (<>) $ fmap f ts)
-        where f (TopicAndPartition t p, i) = M.singleton t [(p, i)]
+produceRequest ra ti ts = ProduceRequestV2 $ ProduceReqV2 (ra, ti, formatTopicMessageSet ts)
+
+-- | Transform topic & partition messages into a format accepted by produce requests
+formatTopicMessageSet :: [(TopicAndPartition, MessageSet)] -> [(TopicName, [(Partition, MessageSet)])]
+formatTopicMessageSet ts = M.toList . M.unionsWith (<>) $ fmap f ts
+    where f (TopicAndPartition t p, i) = M.singleton t [(p, i)]
 
 -- | Send messages to partition calculated by 'partitionAndCollate'.
 produceMessages :: Kafka m => [TopicAndMessage] -> m [ProduceResponseV2]
 produceMessages tams = do
   m <- fmap (fmap groupMessagesToSet) <$> partitionAndCollate tams
   mapM (uncurry send) $ fmap M.toList <$> M.toList m
+
+-- | Sends messages to partition calculated by 'partitionAndCollate' using a custom produce request.
+produceMessages' :: (Serializable req, Deserializable resp, Kafka m) => ProduceRequestFactory req resp -> [TopicAndMessage] -> m [resp]
+produceMessages' prf tams = do
+  m <- fmap (fmap groupMessagesToSet) <$> partitionAndCollate tams
+  mapM (uncurry $ send' prf) $ fmap M.toList <$> M.toList m
 
 -- | Create a protocol message set from a list of messages.
 groupMessagesToSet :: [TopicAndMessage] -> MessageSet
@@ -69,15 +80,20 @@ getPartitionByKey key ps = Set.toAscList ps ^? ix i
         x = fromIntegral $ toPositive $ murmur key
         i = x `mod` numPartitions
 
--- | Execute a produce request using the values in the state.
-send :: Kafka m => Leader -> [(TopicAndPartition, MessageSet)] -> m ProduceResponseV2
-send l ts = do
+-- | Execute a custom produce request using the values in the state.
+send' :: (Serializable req, Deserializable resp, Kafka m) => ProduceRequestFactory req resp -> Leader -> [(TopicAndPartition, MessageSet)] -> m resp
+send' prf l ts = do
   let s = stateBrokers . at l
       topicNames = map (_tapTopic . fst) ts
   broker <- findMetadataOrElse topicNames s (KafkaInvalidBroker l)
+  withBrokerHandle broker $ \handle -> produce handle $ produceRequestFactory prf ts
+
+-- | Execute a produce request using the values in the state.
+send :: Kafka m => Leader -> [(TopicAndPartition, MessageSet)] -> m ProduceResponseV2
+send l ts = do
   requiredAcks <- use stateRequiredAcks
   requestTimeout <- use stateRequestTimeout
-  withBrokerHandle broker $ \handle -> produce handle $ produceRequest requiredAcks requestTimeout ts
+  send' (ProduceRequestFactory $ produceRequest requiredAcks requestTimeout) l ts
 
 getRandPartition :: Kafka m => Set PartitionAndLeader -> m (Maybe PartitionAndLeader)
 getRandPartition ps =
