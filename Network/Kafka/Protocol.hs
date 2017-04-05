@@ -248,8 +248,8 @@ newtype OffsetCommitRequestV2 = OffsetCommitReqV2 (
     [(TopicName, [(Partition, Offset, Time, Metadata)])]
   ) deriving (Show, Eq, Serializable)
 
-newtype GroupGenerationId = GroupGenerationId { _groupGenerationId :: Int32 } deriving (Show, Eq, Serializable)
-newtype MemberId = MemberId { _memberId :: KafkaString } deriving (Show, Eq, Serializable)
+newtype GroupGenerationId = GroupGenerationId { _groupGenerationId :: Int32 } deriving (Show, Eq, Serializable, Deserializable)
+newtype MemberId = MemberId { _memberId :: KafkaString } deriving (Show, Eq, Serializable, Deserializable)
 type RetentionTime = Time
 
 data OffsetFetchRequest req resp where
@@ -261,6 +261,46 @@ newtype OffsetFetchRequestV1 = OffsetFetchReqV1 (ConsumerGroup, [(TopicName, [Pa
 
 newtype ConsumerGroup = ConsumerGroup KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
 newtype Metadata = Metadata KafkaNullableString deriving (Show, Eq, Serializable, Deserializable, IsString)
+
+data JoinGroupRequest req resp where
+  JoinGroupRequestV0 :: JoinGroupRequestV0 -> JoinGroupRequest JoinGroupRequestV0 JoinGroupResponseV0
+  JoinGroupRequestV1 :: JoinGroupRequestV1 -> JoinGroupRequest JoinGroupRequestV1 JoinGroupResponseV1
+
+newtype JoinGroupRequestV0 = JoinGroupReqV0 (ConsumerGroup, SessionTimeout, MemberId, ProtocolType, [(ProtocolName, ProtocolMetadata)]) deriving (Show, Eq, Serializable)
+newtype JoinGroupRequestV1 = JoinGroupReqV1 (ConsumerGroup, SessionTimeout, RebalanceTimeout, MemberId, ProtocolType, [(ProtocolName, ProtocolMetadata)]) deriving (Show, Eq, Serializable)
+
+newtype JoinGroupResponseV0 = JoinGroupResponseV0 (KafkaError, GroupGenerationId, ProtocolName, GroupLeader, MemberId, [(MemberId, MemberMetadata)])
+  deriving (Show, Eq, Deserializable)
+newtype JoinGroupResponseV1 = JoinGroupResponseV1 (KafkaError, GroupGenerationId, ProtocolName, GroupLeader, MemberId, [(MemberId, ProtocolMetadata)])
+  deriving (Show, Eq, Deserializable)
+
+type SessionTimeout = Timeout;
+type RebalanceTimeout = Timeout;
+newtype GroupLeader = GroupLeader KafkaString deriving (Show, Eq, Deserializable, IsString)
+newtype ProtocolType = ProtocolType KafkaString deriving (Show, Eq, Serializable, IsString)
+newtype ProtocolName = ProtocolName KafkaString deriving (Show, Eq, Serializable, Deserializable, IsString)
+newtype ProtocolMetadata = ProtocolMetadata { _protocolMetadata :: (ApiVersion, [TopicName], UserData) } deriving (Show, Eq, Serializable, Deserializable)
+newtype MemberMetadata = MemberMetadata KafkaBytes deriving (Show, Eq, Deserializable)
+newtype MemberAssignment = MemberAssignment (ApiVersion, [(TopicName, [Partition])], UserData) deriving (Show, Eq, Serializable, Deserializable)
+newtype UserData = UserData KafkaBytes deriving (Show, Eq, Serializable, Deserializable)
+
+data HeartbeatRequest req resp where
+  HeartbeatRequestV0 :: HeartbeatRequestV0 -> HeartbeatRequest HeartbeatRequestV0 HeartbeatResponseV0
+
+newtype HeartbeatRequestV0 = HeartbeatReqV0 (ConsumerGroup, GroupGenerationId, MemberId) deriving (Show, Eq, Serializable)
+newtype HeartbeatResponseV0 = HeartbeatRespV0 KafkaError deriving (Show, Eq, Deserializable)
+
+data LeaveGroupRequest req resp where
+  LeaveGroupRequestV0 :: LeaveGroupRequestV0 -> LeaveGroupRequest LeaveGroupRequestV0 LeaveGroupResponseV0
+
+newtype LeaveGroupRequestV0 = LeaveGroupReqV0 (ConsumerGroup, MemberId) deriving (Show, Eq, Serializable)
+newtype LeaveGroupResponseV0 = LeaveGroupRespV0 KafkaError deriving (Show, Eq, Deserializable)
+
+data SyncGroupRequest req resp where
+  SyncGroupRequestV0 :: SyncGroupRequestV0 -> SyncGroupRequest SyncGroupRequestV0 SyncGroupResponseV0
+
+newtype SyncGroupRequestV0 = SyncGroupReqV0 (ConsumerGroup, GroupGenerationId, MemberId, [(MemberId, MemberAssignment)]) deriving (Show, Eq, Serializable)
+newtype SyncGroupResponseV0 = SyncGroupRespV0 (KafkaError, KafkaBytes) deriving (Show, Eq, Deserializable)
 
 errorKafka :: KafkaError -> Int16
 errorKafka NoError                             = 0
@@ -638,6 +678,36 @@ instance Serializable req => RequestMessage (GroupCoordinatorRequest req resp) w
   serializeRequest (GroupCoordinatorRequestV0 r) = serialize r
 
   apiVersionValue GroupCoordinatorRequestV0{} = 0
+
+instance Serializable req => RequestMessage (JoinGroupRequest req resp) where
+  apiKeyValue _ = 11
+
+  serializeRequest (JoinGroupRequestV0 r) = serialize r
+  serializeRequest (JoinGroupRequestV1 r) = serialize r
+
+  apiVersionValue JoinGroupRequestV0{} = 0
+  apiVersionValue JoinGroupRequestV1{} = 1
+
+instance Serializable req => RequestMessage (HeartbeatRequest req resp) where
+  apiKeyValue _ = 12
+
+  serializeRequest (HeartbeatRequestV0 r) = serialize r
+
+  apiVersionValue HeartbeatRequestV0{} = 0
+
+instance Serializable req => RequestMessage (LeaveGroupRequest req resp) where
+  apiKeyValue _ = 13
+
+  serializeRequest (LeaveGroupRequestV0 r) = serialize r
+
+  apiVersionValue LeaveGroupRequestV0{} = 0
+
+instance Serializable req => RequestMessage (SyncGroupRequest req resp) where
+  apiKeyValue _ = 14
+
+  serializeRequest (SyncGroupRequestV0 r) = serialize r
+
+  apiVersionValue SyncGroupRequestV0{} = 0
 
 -- * Generated lenses
 
