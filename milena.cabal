@@ -69,6 +69,10 @@ test-suite test
                        tasty,
                        tasty-hspec,
                        tasty-quickcheck
+                       tasty-quickcheck,
+                       transformers
   hs-source-dirs:      test
   main-is:             tests.hs
   type:                exitcode-stdio-1.0
+  other-modules:
+    KafkaTest

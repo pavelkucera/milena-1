@@ -16,6 +16,7 @@ import Test.Tasty
 import Test.Tasty.Hspec
 import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Char8 as B
+import KafkaTest
 
 import Prelude
 
@@ -24,13 +25,6 @@ main = testSpec "the specs" specs >>= defaultMain
 
 specs :: Spec
 specs = do
-  let topic = "milena-test"
-      run = runKafka $ mkKafkaState "milena-test-client" ("localhost", 9092)
-      requireAllAcks = do
-        stateRequiredAcks .= -1
-        stateWaitSize .= 1
-        stateWaitTime .= 1000
-      byteMessages time = fmap (TopicAndMessage topic . makeMessage time . B.pack)
 
   describe "can talk to local Kafka server" $ do
     prop "can produce messages" $ \ms -> do
@@ -112,6 +106,3 @@ specs = do
         updateMetadatas []
         use stateAddresses
       result `shouldBe` fmap NE.nub result
-
-prop :: Testable prop => String -> prop -> SpecWith ()
-prop s = it s . property
