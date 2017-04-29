@@ -38,6 +38,8 @@ data KafkaState = KafkaState { -- | Name to use as a client ID.
                              , _stateRequestTimeout :: Timeout
                                -- | Minimum size of response bytes to block for.
                              , _stateWaitSize :: MinBytes
+                               -- | Maximum size of response bytes to block for.
+                             , _stateWaitMaxSize :: MaxBytes
                                -- | Maximum size of response bytes to retrieve.
                              , _stateBufferSize :: MaxBytes
                                -- | Maximum time in milliseconds to wait for response.
@@ -125,6 +127,10 @@ defaultRequestTimeout = 10000
 defaultMinBytes :: MinBytes
 defaultMinBytes = MinBytes 0
 
+-- | Default: @50 * 1024 * 1024@
+defaultFetchMaxBytes :: MaxBytes
+defaultFetchMaxBytes = 50 * 1024 * 1024
+
 -- | Default: @1024 * 1024@
 defaultMaxBytes :: MaxBytes
 defaultMaxBytes = 1024 * 1024
@@ -140,6 +146,7 @@ mkKafkaState cid addy =
                defaultRequiredAcks
                defaultRequestTimeout
                defaultMinBytes
+               defaultFetchMaxBytes
                defaultMaxBytes
                defaultMaxWaitTime
                defaultCorrelationId
@@ -163,7 +170,7 @@ tryKafka :: Kafka m => m a -> m a
 tryKafka = (`catch` \e -> throwError $ KafkaIOException (e :: IOException))
 
 -- | Make a request, incrementing the `_stateCorrelationId`.
-makeRequest :: Kafka m => Handle -> ReqResp (m a) -> m a
+makeRequest :: (RequestMessage req, Deserializable resp, Kafka m) => Handle -> req -> m resp
 makeRequest h reqresp = do
   (clientId, correlationId) <- makeIds
   eitherResp <- tryKafka $ doRequest clientId correlationId h reqresp
@@ -179,12 +186,12 @@ makeRequest h reqresp = do
       return (ClientId conid, corid)
 
 -- | Send a metadata request to any broker.
-metadata :: Kafka m => MetadataRequest -> m MetadataResponse
+metadata :: Kafka m => MetadataRequestV0 -> m MetadataResponseV0
 metadata request = withAnyHandle $ flip metadata' request
 
 -- | Send a metadata request.
-metadata' :: Kafka m => Handle -> MetadataRequest -> m MetadataResponse
-metadata' h request = makeRequest h $ MetadataRR request
+metadata' :: Kafka m => Handle -> MetadataRequestV0 -> m MetadataResponseV0
+metadata' h request = makeRequest h $ MetadataRequestV0 request
 
 getTopicPartitionLeader :: Kafka m => TopicName -> Partition -> m Broker
 getTopicPartitionLeader t p = do
@@ -224,7 +231,7 @@ protocolTime (OtherTime o) = o
 
 updateMetadatas :: Kafka m => [TopicName] -> m ()
 updateMetadatas ts = do
-  md <- metadata $ MetadataReq ts
+  md <- metadata $ MetadataReqV0 ts
   let (brokers, tmds) = (md ^.. metadataResponseBrokers . folded, md ^.. topicsMetadata . folded)
       addresses = map broker2address brokers
   stateAddresses %= NE.nub . NE.fromList . (++ addresses) . NE.toList
@@ -319,14 +326,14 @@ getLastOffset m p t = do
 -- | Get the first found offset.
 getLastOffset' :: Kafka m => Handle -> KafkaTime -> Partition -> TopicName -> m Offset
 getLastOffset' h m p t = do
-  let offsetRR = OffsetRR $ offsetRequest [(TopicAndPartition t p, PartitionOffsetRequestInfo m 1)]
+  let offsetRR = OffsetRequestV1 $ offsetRequest [(TopicAndPartition t p, PartitionOffsetRequestInfo m 1)]
   offsetResponse <- makeRequest h offsetRR
   let maybeResp = firstOf (offsetResponseOffset p) offsetResponse
   maybe (throwError KafkaNoOffset) return maybeResp
 
 -- | Create an offset request.
-offsetRequest :: [(TopicAndPartition, PartitionOffsetRequestInfo)] -> OffsetRequest
+offsetRequest :: [(TopicAndPartition, PartitionOffsetRequestInfo)] -> OffsetRequestV1
 offsetRequest ts =
-    OffsetReq (ReplicaId (-1), M.toList . M.unionsWith (<>) $ fmap f ts)
+    OffsetReqV1 (ReplicaId (-1), M.toList . M.unionsWith (<>) $ fmap f ts)
         where f (TopicAndPartition t p, i) = M.singleton t [g p i]
               g p (PartitionOffsetRequestInfo kt mno) = (p, protocolTime kt, mno)
