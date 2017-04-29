@@ -301,7 +301,6 @@ data KafkaError = NoError -- ^ @0@ No error--it worked!
                 deriving (Eq, Show)
 
 instance IsString KafkaNullableString where
-  fromString [] = KNString Nothing
   fromString x = KNString (Just (fromString x))
 
 instance Serializable KafkaError where
